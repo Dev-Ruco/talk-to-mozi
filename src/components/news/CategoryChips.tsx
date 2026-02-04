@@ -38,21 +38,24 @@ export function CategoryChips({ selectedCategory, onSelect }: CategoryChipsProps
       >
         Todas
       </button>
-      {categories.map((category) => (
-        <button
-          key={category.id}
-          onClick={() => handleClick(category.id)}
-          className={cn(
-            "shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors",
-            selectedCategory === category.id
-              ? "bg-primary text-primary-foreground"
-              : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-          )}
-        >
-          <span className="mr-1.5">{category.icon}</span>
-          {category.name}
-        </button>
-      ))}
+      {categories.map((category) => {
+        const Icon = category.icon;
+        return (
+          <button
+            key={category.id}
+            onClick={() => handleClick(category.id)}
+            className={cn(
+              "shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors flex items-center gap-1.5",
+              selectedCategory === category.id
+                ? "bg-primary text-primary-foreground"
+                : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+            )}
+          >
+            <Icon className="h-4 w-4" />
+            {category.name}
+          </button>
+        );
+      })}
     </div>
   );
 }

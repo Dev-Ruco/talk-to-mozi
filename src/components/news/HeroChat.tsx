@@ -4,16 +4,15 @@ import { Send, MessageCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { getLatestArticles } from '@/data/articles';
+import { sponsoredAds } from '@/data/ads';
+import { Carousel, CarouselContent, CarouselItem } from '@/components/ui/carousel';
+import { SponsoredCard } from './SponsoredCard';
+import Autoplay from 'embla-carousel-autoplay';
 
 export function HeroChat() {
   const [query, setQuery] = useState('');
   const navigate = useNavigate();
-  const latestArticles = getLatestArticles(4);
-
-  const suggestions = latestArticles.map(article => ({
-    id: article.id,
-    text: generateSuggestion(article.title, article.category),
-  }));
+  const latestArticles = getLatestArticles(3);
 
   const quickTopics = ['inflação', 'combustível', 'chuvas', 'política', 'dólar', 'saúde', 'educação'];
 
@@ -24,9 +23,15 @@ export function HeroChat() {
     }
   };
 
-  const handleSuggestionClick = (text: string) => {
-    navigate(`/chat?q=${encodeURIComponent(text)}`);
+  const handleArticleChat = (articleId: string) => {
+    navigate(`/artigo/${articleId}#chat`);
   };
+
+  // Mix articles with one sponsored ad
+  const carouselItems = [
+    ...latestArticles.map(a => ({ type: 'article' as const, data: a })),
+    { type: 'ad' as const, data: sponsoredAds[0] }
+  ];
 
   return (
     <section className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-8 md:min-h-[60vh] md:py-12">
@@ -71,7 +76,7 @@ export function HeroChat() {
                 <button
                   key={topic}
                   type="button"
-                  onClick={() => handleSuggestionClick(topic)}
+                  onClick={() => navigate(`/chat?q=${encodeURIComponent(topic)}`)}
                   className="rounded-full border bg-background px-3 py-1 text-xs transition-colors hover:border-primary hover:text-primary"
                 >
                   {topic}
@@ -81,61 +86,65 @@ export function HeroChat() {
           </div>
         </form>
         
-        {/* Dynamic suggestions */}
-        <div className="space-y-3 pt-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Sugestões de hoje
-          </p>
-          <div className="flex flex-col gap-2">
-            {suggestions.map((suggestion) => (
-              <button
-                key={suggestion.id}
-                onClick={() => handleSuggestionClick(suggestion.text)}
-                className="group flex items-center justify-between gap-3 rounded-lg border bg-background px-4 py-3 text-left text-sm transition-colors hover:border-primary/50 hover:bg-primary/5"
-              >
-                <span className="line-clamp-1">{suggestion.text}</span>
-                <MessageCircle className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
-              </button>
-            ))}
-          </div>
+        {/* Visual Carousel */}
+        <div className="pt-6">
+          <Carousel 
+            className="w-full"
+            opts={{
+              align: 'start',
+              loop: true,
+            }}
+            plugins={[
+              Autoplay({ delay: 5000, stopOnInteraction: true })
+            ]}
+          >
+            <CarouselContent>
+              {carouselItems.map((item, index) => (
+                <CarouselItem key={index} className="basis-full md:basis-1/2 lg:basis-1/2">
+                  {item.type === 'article' ? (
+                    <button
+                      onClick={() => handleArticleChat(item.data.id)}
+                      className="group relative block h-48 w-full overflow-hidden rounded-xl text-left"
+                    >
+                      <img
+                        src={item.data.imageUrl || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&h=400&fit=crop'}
+                        alt={item.data.title}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+                      <div className="absolute bottom-0 left-0 right-0 p-4">
+                        <h3 className="font-display text-base font-bold text-white leading-tight line-clamp-2 md:text-lg">
+                          {item.data.title}
+                        </h3>
+                        <div className="mt-2 flex items-center gap-2">
+                          <span className="flex items-center gap-1 text-xs text-white/90">
+                            <MessageCircle className="h-3 w-3" />
+                            Conversar
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  ) : (
+                    <div className="h-48">
+                      <SponsoredCard ad={item.data} variant="carousel" />
+                    </div>
+                  )}
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+            
+            {/* Dots indicator */}
+            <div className="mt-4 flex justify-center gap-2">
+              {carouselItems.map((_, index) => (
+                <div
+                  key={index}
+                  className="h-2 w-2 rounded-full bg-primary/30"
+                />
+              ))}
+            </div>
+          </Carousel>
         </div>
       </div>
     </section>
   );
-}
-
-function generateSuggestion(title: string, category: string): string {
-  const templates: Record<string, string[]> = {
-    economia: [
-      'Economia: ',
-      'Impacto económico de ',
-    ],
-    politica: [
-      'Nova medida do Governo — ',
-      'Política: ',
-    ],
-    sociedade: [
-      'Sociedade: ',
-      'O que saber sobre: ',
-    ],
-    entretenimento: [
-      'Destaque cultural: ',
-    ],
-    tecnologia: [
-      'Tecnologia: ',
-    ],
-    internacional: [
-      'Internacional: ',
-    ],
-    desporto: [
-      'Desporto: ',
-    ],
-  };
-
-  const categoryTemplates = templates[category] || [''];
-  const template = categoryTemplates[Math.floor(Math.random() * categoryTemplates.length)];
-  
-  const shortTitle = title.length > 45 ? title.substring(0, 45) + '...' : title;
-  
-  return template + shortTitle;
 }

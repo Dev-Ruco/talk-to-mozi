@@ -86,9 +86,10 @@ export default function ArticlePage() {
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <Badge 
             variant="secondary" 
-            className={cn("text-xs", getCategoryColor(article.category))}
+            className={cn("text-xs", getCategoryColor())}
           >
-            {category?.icon} {category?.name}
+            {category?.icon && <category.icon className="mr-1 h-3 w-3" />}
+            {category?.name}
           </Badge>
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <Calendar className="h-3 w-3" />

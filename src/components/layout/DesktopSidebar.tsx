@@ -29,6 +29,7 @@ export function DesktopSidebar() {
           <nav className="flex flex-col gap-0.5">
             {categories.map((category) => {
               const isActive = location.pathname === `/categoria/${category.id}`;
+              const Icon = category.icon;
               return (
                 <Link
                   key={category.id}
@@ -40,7 +41,7 @@ export function DesktopSidebar() {
                       : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                   )}
                 >
-                  <span className="text-base">{category.icon}</span>
+                  <Icon className="h-4 w-4" />
                   <span>{category.name}</span>
                 </Link>
               );

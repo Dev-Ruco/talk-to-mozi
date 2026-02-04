@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
 import { TrendingUp } from 'lucide-react';
 import { getTrendingArticles } from '@/data/articles';
-import { getCategoryColor } from '@/data/categories';
-import { Badge } from '@/components/ui/badge';
+import { sponsoredAds } from '@/data/ads';
+import { NewsCard } from '@/components/news/NewsCard';
+import { SponsoredCard } from '@/components/news/SponsoredCard';
 import { cn } from '@/lib/utils';
 
 interface RightSidebarProps {
@@ -10,7 +11,7 @@ interface RightSidebarProps {
 }
 
 export function RightSidebar({ visible = true }: RightSidebarProps) {
-  const trending = getTrendingArticles().slice(0, 5);
+  const trending = getTrendingArticles().slice(0, 4);
 
   return (
     <aside 
@@ -20,7 +21,7 @@ export function RightSidebar({ visible = true }: RightSidebarProps) {
       )}
     >
       <div className="flex h-full flex-col py-6 pl-6">
-        {/* Trending only */}
+        {/* Trending Section */}
         <div>
           <div className="mb-4 flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-primary" />
@@ -29,28 +30,21 @@ export function RightSidebar({ visible = true }: RightSidebarProps) {
             </h2>
           </div>
           <div className="flex flex-col gap-4">
-            {trending.map((article, index) => (
-              <Link
+            {trending.map((article) => (
+              <NewsCard
                 key={article.id}
-                to={`/artigo/${article.id}`}
-                className="group flex gap-3"
-              >
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                  {index + 1}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium leading-tight line-clamp-2 group-hover:text-primary transition-colors">
-                    {article.title}
-                  </p>
-                  <Badge 
-                    variant="secondary" 
-                    className={cn("mt-1.5 text-[10px]", getCategoryColor(article.category))}
-                  >
-                    {article.category}
-                  </Badge>
-                </div>
-              </Link>
+                article={article}
+                variant="sidebar"
+              />
             ))}
+            
+            {/* Sponsored item at the end */}
+            <div className="pt-2 border-t">
+              <SponsoredCard 
+                ad={sponsoredAds[1]} 
+                variant="sidebar" 
+              />
+            </div>
           </div>
         </div>
       </div>
