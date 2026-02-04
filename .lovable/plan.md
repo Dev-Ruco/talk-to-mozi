@@ -1,68 +1,130 @@
 
-# Auditoria Completa do B NEWS - ✅ CONCLUÍDA
+# Auditoria Completa: Problemas Identificados no Dashboard
 
-## Correcções Implementadas
-
-### ✅ Sprint A: Erros Críticos Corrigidos
-
-**1. Rota e Editor de Artigos**
-- [x] Criada rota `/admin/article/:id` em `App.tsx`
-- [x] Criada página `ArticleEditorPage.tsx`
-- [x] Implementado editor 3 painéis:
-  - `SourcePanel.tsx` - Visualização da fonte original
-  - `ContentPanel.tsx` - Edição de título, lead, conteúdo, tags
-  - `PublishPanel.tsx` - Imagem, categoria, SEO, agendamento
-
-### ✅ Sprint B: Páginas Placeholder Completadas
-
-**2. AdsPage - CRUD Completo**
-- [x] Tabs para Campanhas e Anúncios
-- [x] Diálogos para criar/editar campanhas
-- [x] Diálogos para criar/editar anúncios
-- [x] Listar, editar, apagar funcional
-- [x] Integração com Supabase
-
-**3. TeamPage - Gestão de Equipa**
-- [x] Listar utilizadores com roles
-- [x] Adicionar membro (por UUID)
-- [x] Alterar role inline
-- [x] Remover membro
-- [x] Card de permissões por role
-
-**4. SettingsPage - Configurações**
-- [x] Tab Geral (nome, URL, idioma)
-- [x] Tab Agente IA (intervalo, reescrita, duplicados)
-- [x] Tab Notificações
-- [x] Tab Apresentação
-
-### ✅ Sprint C: Agente IA
-
-**5. Edge Function `news-agent`**
-- [x] Fetch RSS de fontes activas
-- [x] Parser RSS simples
-- [x] Detecção de duplicados (Jaccard similarity)
-- [x] Inserção de artigos com status `captured`
-- [x] Logs de execução
-- [x] Botão "Executar agora" funcional na AgentPage
+Apos uma analise detalhada do codigo, identifiquei os seguintes problemas no dashboard:
 
 ---
 
-## Estado Final
+## Resumo dos Problemas Encontrados
 
-| Componente | Estado |
-|------------|--------|
-| `/admin/article/:id` | ✅ Funcional |
-| Editor 3 painéis | ✅ Implementado |
-| AdsPage CRUD | ✅ Completo |
-| TeamPage CRUD | ✅ Completo |
-| SettingsPage | ✅ Completo |
-| Edge function news-agent | ✅ Deployed |
-| AgentPage integração | ✅ Funcional |
+| Categoria | Problema | Gravidade |
+|-----------|----------|-----------|
+| Console Warning | MobileNav sem forwardRef | Baixa |
+| Rotas Funcioantes | Todas as 13 rotas admin estao correctas | OK |
+| Paginas | Todas implementadas e funcionais | OK |
+| Links internos | Todos correctos | OK |
 
-## Próximos Passos Opcionais
+---
 
-1. Integrar AI Gateway para reescrita automática de artigos
-2. Upload de imagens para Supabase Storage
-3. Agendamento automático via cron/scheduled function
-4. Persistir configurações do SettingsPage na base de dados
+## Problema 1: Warning React - MobileNav sem forwardRef
+
+### O que acontece
+O console mostra um warning: "Function components cannot be given refs" no MobileNav.
+
+### Causa
+O componente MobileNav esta a ser usado no Layout sem forwardRef, o que gera um warning do React.
+
+### Solucao
+Adicionar forwardRef ao componente MobileNav para eliminar o warning.
+
+---
+
+## Verificacao Completa de Rotas
+
+Todas as rotas do backoffice estao correctamente definidas:
+
+| Rota | Pagina | Estado |
+|------|--------|--------|
+| /admin/login | AdminLoginPage | OK |
+| /admin | AdminDashboard | OK |
+| /admin/inbox | InboxPage | OK |
+| /admin/pending | PendingPage | OK |
+| /admin/editing | EditingPage | OK |
+| /admin/scheduled | ScheduledPage | OK |
+| /admin/published | PublishedPage | OK |
+| /admin/sources | SourcesPage | OK |
+| /admin/ads | AdsPage | OK |
+| /admin/agent | AgentPage | OK |
+| /admin/team | TeamPage | OK |
+| /admin/settings | SettingsPage | OK |
+| /admin/article/:id | ArticleEditorPage | OK |
+
+---
+
+## Verificacao de Links Internos
+
+### AdminSidebar
+Todos os links estao correctos e apontam para rotas existentes.
+
+### AdminDashboard
+- Link para /admin/inbox - OK
+- Link para /admin/pending - OK
+- Link para /admin/sources - OK
+- Link para /admin/agent - OK
+
+### ArticleList
+- Link para /admin/article/{id} - OK (rota existe em App.tsx)
+
+---
+
+## Funcionalidades que Ainda Nao Estao 100% Completas
+
+### 1. SettingsPage - Definicoes nao persistem
+As definicoes sao guardadas apenas em estado local, o botao "Guardar" apenas mostra toast.
+
+### 2. AgentPage - Toggle e Frequencia nao persistem
+O estado ON/OFF e frequencia do agente sao guardados apenas em estado local.
+
+---
+
+## Plano de Correcoes
+
+### Correcao 1: Adicionar forwardRef ao MobileNav (Baixa prioridade)
+
+Modificar `src/components/layout/MobileNav.tsx` para usar forwardRef:
+
+```typescript
+import { forwardRef } from 'react';
+
+export const MobileNav = forwardRef<HTMLDivElement, {}>((props, ref) => {
+  // ...componente existente
+});
+
+MobileNav.displayName = 'MobileNav';
+```
+
+### Correcao 2: Persistir definicoes (Opcional)
+
+Criar tabela `settings` no Supabase e modificar SettingsPage para guardar/carregar definicoes.
+
+### Correcao 3: Persistir estado do agente (Opcional)
+
+Adicionar colunas na tabela de configuracao para guardar estado do agente.
+
+---
+
+## Conclusao
+
+O dashboard esta **funcionalmente completo**. Todas as rotas existem e estao correctamente configuradas. O unico problema tecnico e um warning de React no MobileNav que nao afecta a funcionalidade.
+
+### Ficheiros a Modificar
+
+```text
+src/components/layout/MobileNav.tsx    # Adicionar forwardRef (eliminar warning)
+```
+
+### Ficheiros Opcionais (Melhorias)
+
+```text
+src/admin/pages/SettingsPage.tsx       # Persistir definicoes na BD
+src/admin/pages/AgentPage.tsx          # Persistir estado do agente
+```
+
+---
+
+## Accoes Recomendadas
+
+1. **Corrigir warning MobileNav** - Adicionar forwardRef para eliminar aviso da consola
+2. **Testar todas as paginas** - Navegar pelo dashboard para confirmar funcionamento
+3. **Criar utilizador admin** - Necessario para aceder ao backoffice
 
