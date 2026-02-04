@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Home, Grid3X3, MessageCircle, Heart, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -10,11 +11,14 @@ const navItems = [
   { icon: User, label: 'Perfil', path: '/perfil' },
 ];
 
-export function MobileNav() {
+export const MobileNav = forwardRef<HTMLDivElement>((_, ref) => {
   const location = useLocation();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:hidden safe-area-inset-bottom">
+    <nav 
+      ref={ref}
+      className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:hidden safe-area-inset-bottom"
+    >
       <div className="flex h-16 items-center justify-around px-2">
         {navItems.map(({ icon: Icon, label, path }) => {
           const isActive = location.pathname === path || 
@@ -42,4 +46,6 @@ export function MobileNav() {
       </div>
     </nav>
   );
-}
+});
+
+MobileNav.displayName = 'MobileNav';
