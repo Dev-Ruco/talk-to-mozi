@@ -58,11 +58,19 @@ export default function AgentPage() {
 
   const handleRunNow = async () => {
     toast.info('A executar agente...');
-    // TODO: Implement edge function call
-    setTimeout(() => {
-      toast.success('Agente executado com sucesso');
-      fetchLogs();
-    }, 2000);
+    try {
+      const { data, error } = await supabase.functions.invoke('news-agent');
+      
+      if (error) {
+        toast.error('Erro ao executar agente: ' + error.message);
+      } else {
+        toast.success(`Agente executado: ${data.articles_found} encontradas, ${data.articles_saved} guardadas`);
+        fetchLogs();
+      }
+    } catch (err) {
+      toast.error('Erro de comunicação com o agente');
+      console.error(err);
+    }
   };
 
   return (

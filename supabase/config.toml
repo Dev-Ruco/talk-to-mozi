@@ -1,1 +1,4 @@
 project_id = "kwwzfhpamciilgmknsov"
+
+[functions.news-agent]
+verify_jwt = false
