@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Send, MessageCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,10 @@ export function HeroChat() {
   const [query, setQuery] = useState('');
   const navigate = useNavigate();
   const latestArticles = getLatestArticles(3);
+  
+  const autoplayPlugin = useRef(
+    Autoplay({ delay: 5000, stopOnInteraction: true })
+  );
 
   const quickTopics = ['inflação', 'combustível', 'chuvas', 'política', 'dólar', 'saúde', 'educação'];
 
@@ -94,9 +98,7 @@ export function HeroChat() {
               align: 'start',
               loop: true,
             }}
-            plugins={[
-              Autoplay({ delay: 5000, stopOnInteraction: true })
-            ]}
+            plugins={[autoplayPlugin.current]}
           >
             <CarouselContent>
               {carouselItems.map((item, index) => (
