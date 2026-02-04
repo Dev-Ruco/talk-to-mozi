@@ -4,13 +4,13 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { categories } from '@/data/categories';
-import { useSavedArticles } from '@/hooks/useSavedArticles';
+import { useLikedArticles } from '@/hooks/useLikedArticles';
 import { User, Bell, Palette, Trash2 } from 'lucide-react';
 
 export default function ProfilePage() {
   const [notifications, setNotifications] = useState(false);
   const [followedCategories, setFollowedCategories] = useState<string[]>([]);
-  const { savedIds } = useSavedArticles();
+  const { likedIds } = useLikedArticles();
 
   const toggleCategory = (categoryId: string) => {
     setFollowedCategories(prev =>
@@ -20,8 +20,8 @@ export default function ProfilePage() {
     );
   };
 
-  const clearSaved = () => {
-    localStorage.removeItem('bnews_saved_articles');
+  const clearLiked = () => {
+    localStorage.removeItem('bnews_liked_articles');
     window.location.reload();
   };
 
@@ -46,7 +46,7 @@ export default function ProfilePage() {
             <div>
               <h2 className="font-display text-lg font-semibold">Leitor Anónimo</h2>
               <p className="text-sm text-muted-foreground">
-                {savedIds.length} {savedIds.length === 1 ? 'notícia guardada' : 'notícias guardadas'}
+                {likedIds.length} {likedIds.length === 1 ? 'notícia curtida' : 'notícias curtidas'}
               </p>
             </div>
           </div>
@@ -114,9 +114,9 @@ export default function ProfilePage() {
             <h2 className="font-display font-semibold">Limpar Dados</h2>
           </div>
           <p className="text-sm text-muted-foreground mb-4">
-            Remover todas as notícias guardadas e preferências
+            Remover todas as notícias curtidas e preferências
           </p>
-          <Button variant="destructive" size="sm" onClick={clearSaved}>
+          <Button variant="destructive" size="sm" onClick={clearLiked}>
             Limpar tudo
           </Button>
         </section>

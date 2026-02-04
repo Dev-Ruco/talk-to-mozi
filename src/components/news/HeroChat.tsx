@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Send, MessageCircle } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { getLatestArticles } from '@/data/articles';
@@ -11,6 +12,7 @@ import Autoplay from 'embla-carousel-autoplay';
 
 export function HeroChat() {
   const [query, setQuery] = useState('');
+  const [isSending, setIsSending] = useState(false);
   const navigate = useNavigate();
   const latestArticles = getLatestArticles(3);
   
@@ -23,7 +25,11 @@ export function HeroChat() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
-      navigate(`/chat?q=${encodeURIComponent(query.trim())}`);
+      setIsSending(true);
+      // Small delay to show animation
+      setTimeout(() => {
+        navigate(`/chat?q=${encodeURIComponent(query.trim())}`);
+      }, 200);
     }
   };
 
@@ -39,21 +45,33 @@ export function HeroChat() {
 
   return (
     <section className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-8 md:min-h-[60vh] md:py-12">
-      <div className="w-full max-w-2xl space-y-8 text-center">
+      <motion.div 
+        className="w-full max-w-2xl space-y-8 text-center"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
         {/* Main title */}
         <div className="space-y-3">
-          <div className="inline-flex items-center gap-2 text-primary">
-            <MessageCircle className="h-5 w-5" />
-            <span className="text-sm font-medium">Alimentado por IA</span>
-          </div>
-          <h1 className="font-display text-3xl font-bold leading-tight md:text-4xl lg:text-5xl">
+          <motion.h1 
+            className="font-display text-3xl font-bold leading-tight md:text-4xl lg:text-5xl"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+          >
             O que aconteceu hoje em{' '}
             <span className="text-primary">Moçambique</span>?
-          </h1>
+          </motion.h1>
         </div>
         
         {/* Chat input */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <motion.form 
+          onSubmit={handleSubmit} 
+          className="space-y-4"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
           <div className="relative">
             <Input
               value={query}
@@ -61,13 +79,25 @@ export function HeroChat() {
               placeholder="Escreva qualquer tema: inflação, chuvas, política, dólar…"
               className="h-14 pr-14 text-base md:h-16 md:text-lg"
             />
-            <Button
-              type="submit"
-              size="icon"
-              className="absolute right-2 top-1/2 h-10 w-10 -translate-y-1/2 md:h-12 md:w-12"
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="absolute right-2 top-1/2 -translate-y-1/2"
             >
-              <Send className="h-5 w-5" />
-            </Button>
+              <Button
+                type="submit"
+                size="icon"
+                className="h-10 w-10 md:h-12 md:w-12"
+                disabled={isSending}
+              >
+                <motion.div
+                  animate={isSending ? { x: [0, 10], opacity: [1, 0] } : {}}
+                  transition={{ duration: 0.2 }}
+                >
+                  <Send className="h-5 w-5" />
+                </motion.div>
+              </Button>
+            </motion.div>
           </div>
           
           {/* Quick topics */}
@@ -76,22 +106,32 @@ export function HeroChat() {
               Exemplos do que pode perguntar:
             </p>
             <div className="flex flex-wrap justify-center gap-2">
-              {quickTopics.map((topic) => (
-                <button
+              {quickTopics.map((topic, index) => (
+                <motion.button
                   key={topic}
                   type="button"
                   onClick={() => navigate(`/chat?q=${encodeURIComponent(topic)}`)}
                   className="rounded-full border bg-background px-3 py-1 text-xs transition-colors hover:border-primary hover:text-primary"
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.3 + index * 0.05 }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                 >
                   {topic}
-                </button>
+                </motion.button>
               ))}
             </div>
           </div>
-        </form>
+        </motion.form>
         
         {/* Visual Carousel */}
-        <div className="pt-6">
+        <motion.div 
+          className="pt-6"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.5 }}
+        >
           <Carousel 
             className="w-full"
             opts={{
@@ -104,9 +144,11 @@ export function HeroChat() {
               {carouselItems.map((item, index) => (
                 <CarouselItem key={index} className="basis-full md:basis-1/2 lg:basis-1/2">
                   {item.type === 'article' ? (
-                    <button
+                    <motion.button
                       onClick={() => handleArticleChat(item.data.id)}
                       className="group relative block h-48 w-full overflow-hidden rounded-xl text-left"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
                     >
                       <img
                         src={item.data.imageUrl || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&h=400&fit=crop'}
@@ -125,7 +167,7 @@ export function HeroChat() {
                           </span>
                         </div>
                       </div>
-                    </button>
+                    </motion.button>
                   ) : (
                     <div className="h-48">
                       <SponsoredCard ad={item.data} variant="carousel" />
@@ -145,8 +187,8 @@ export function HeroChat() {
               ))}
             </div>
           </Carousel>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </section>
   );
 }

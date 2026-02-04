@@ -1,12 +1,12 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Grid3X3, MessageCircle, Bookmark, User } from 'lucide-react';
+import { Home, Grid3X3, MessageCircle, Heart, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { icon: Home, label: 'Início', path: '/' },
   { icon: Grid3X3, label: 'Categorias', path: '/categorias' },
   { icon: MessageCircle, label: 'Chat', path: '/chat' },
-  { icon: Bookmark, label: 'Guardados', path: '/guardados' },
+  { icon: Heart, label: 'Amei', path: '/guardados' },
   { icon: User, label: 'Perfil', path: '/perfil' },
 ];
 
@@ -31,7 +31,10 @@ export function MobileNav() {
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <Icon className={cn("h-5 w-5", isActive && "fill-primary/20")} />
+              <Icon className={cn(
+                "h-5 w-5",
+                isActive && label === 'Amei' && "fill-primary/20"
+              )} />
               <span className="text-[10px] font-medium">{label}</span>
             </Link>
           );

@@ -1,9 +1,11 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { articles, getArticlesByCategory } from '@/data/articles';
 import { sponsoredAds } from '@/data/ads';
 import { NewsCard } from './NewsCard';
 import { SponsoredCard } from './SponsoredCard';
-import { useSavedArticles } from '@/hooks/useSavedArticles';
+import { useLikedArticles } from '@/hooks/useLikedArticles';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface NewsFeedProps {
   categoryFilter?: string | null;
@@ -12,7 +14,9 @@ interface NewsFeedProps {
 
 export function NewsFeed({ categoryFilter, initialCount = 6 }: NewsFeedProps) {
   const [displayCount, setDisplayCount] = useState(initialCount);
-  const { isSaved, toggleSave } = useSavedArticles();
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const { isLiked, toggleLike } = useLikedArticles();
+  const loadingRef = useRef<HTMLDivElement>(null);
 
   const filteredArticles = categoryFilter
     ? getArticlesByCategory(categoryFilter)
@@ -31,24 +35,32 @@ export function NewsFeed({ categoryFilter, initialCount = 6 }: NewsFeedProps) {
   }, [categoryFilter, initialCount]);
 
   const loadMore = useCallback(() => {
-    setDisplayCount(prev => Math.min(prev + 6, sortedArticles.length));
-  }, [sortedArticles.length]);
+    if (isLoadingMore) return;
+    setIsLoadingMore(true);
+    
+    // Small delay for loading animation
+    setTimeout(() => {
+      setDisplayCount(prev => Math.min(prev + 6, sortedArticles.length));
+      setIsLoadingMore(false);
+    }, 300);
+  }, [sortedArticles.length, isLoadingMore]);
 
-  // Infinite scroll
+  // Infinite scroll with IntersectionObserver
   useEffect(() => {
-    const handleScroll = () => {
-      if (
-        window.innerHeight + document.documentElement.scrollTop >=
-        document.documentElement.offsetHeight - 500
-      ) {
-        if (hasMore) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore) {
           loadMore();
         }
-      }
-    };
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    if (loadingRef.current) {
+      observer.observe(loadingRef.current);
+    }
+
+    return () => observer.disconnect();
   }, [hasMore, loadMore]);
 
   if (displayedArticles.length === 0) {
@@ -72,36 +84,51 @@ export function NewsFeed({ categoryFilter, initialCount = 6 }: NewsFeedProps) {
       {/* Single column, vertical scroll feed */}
       <div className="flex flex-col gap-4">
         {displayedArticles.map((article, index) => (
-          <div key={article.id}>
+          <motion.div 
+            key={article.id}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: Math.min(index * 0.05, 0.2) }}
+          >
             <NewsCard
               article={article}
-              isSaved={isSaved(article.id)}
-              onToggleSave={() => toggleSave(article.id)}
+              isSaved={isLiked(article.id)}
+              onToggleSave={() => toggleLike(article.id)}
             />
             
             {/* Insert sponsored card after every 8th item */}
             {(index + 1) % 8 === 0 && index < displayedArticles.length - 1 && (
-              <div className="mt-4">
+              <motion.div 
+                className="mt-4"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
                 <SponsoredCard 
                   ad={sponsoredAds[getAdIndex(index)]} 
                   variant="feed" 
                 />
-              </div>
+              </motion.div>
             )}
-          </div>
+          </motion.div>
         ))}
       </div>
 
-      {hasMore && (
-        <div className="flex justify-center pt-4">
-          <button
-            onClick={loadMore}
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            A carregar mais notícias...
-          </button>
-        </div>
-      )}
+      {/* Loading indicator */}
+      <div ref={loadingRef} className="flex justify-center pt-4">
+        {hasMore && (
+          isLoadingMore ? (
+            <div className="flex flex-col gap-4 w-full">
+              <Skeleton className="h-64 w-full rounded-xl" />
+              <Skeleton className="h-64 w-full rounded-xl" />
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Scroll para carregar mais...
+            </p>
+          )
+        )}
+      </div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Clock, Calendar, Share2, Bookmark, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Clock, Calendar, Share2, Heart, MessageCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Layout } from '@/components/layout/Layout';
 import { ArticleChat } from '@/components/news/ArticleChat';
 import { NewsCard } from '@/components/news/NewsCard';
@@ -8,13 +9,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { getArticleById, getRelatedArticles } from '@/data/articles';
 import { getCategoryById, getCategoryColor } from '@/data/categories';
-import { useSavedArticles } from '@/hooks/useSavedArticles';
+import { useLikedArticles } from '@/hooks/useLikedArticles';
 import { cn } from '@/lib/utils';
 
 export default function ArticlePage() {
   const { id } = useParams<{ id: string }>();
-  const { isSaved, toggleSave } = useSavedArticles();
+  const { isLiked, toggleLike } = useLikedArticles();
   const [showFloatingButton, setShowFloatingButton] = useState(true);
+  const [showBigHeart, setShowBigHeart] = useState(false);
   
   const article = getArticleById(id || '');
   
@@ -49,7 +51,7 @@ export default function ArticlePage() {
 
   const category = getCategoryById(article.category);
   const relatedArticles = getRelatedArticles(article);
-  const saved = isSaved(article.id);
+  const liked = isLiked(article.id);
 
   const handleShare = async () => {
     if (navigator.share) {
@@ -65,9 +67,30 @@ export default function ArticlePage() {
     document.getElementById('chat')?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const handleLike = () => {
+    if (!liked) {
+      setShowBigHeart(true);
+      setTimeout(() => setShowBigHeart(false), 600);
+    }
+    toggleLike(article.id);
+  };
+
+  const handleImageDoubleClick = () => {
+    if (!liked) {
+      toggleLike(article.id);
+      setShowBigHeart(true);
+      setTimeout(() => setShowBigHeart(false), 600);
+    }
+  };
+
   return (
     <Layout showSidebars={false}>
-      <article className="mx-auto max-w-3xl py-4">
+      <motion.article 
+        className="mx-auto max-w-3xl py-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+      >
         {/* Back navigation */}
         <Link
           to="/"
@@ -115,32 +138,61 @@ export default function ArticlePage() {
 
         {/* Action buttons */}
         <div className="mt-4 flex items-center gap-2">
-          <Button variant="default" size="sm" onClick={scrollToChat}>
-            <MessageCircle className="h-4 w-4 mr-1" />
-            Conversar
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => toggleSave(article.id)}
-          >
-            <Bookmark className={cn("h-4 w-4 mr-1", saved && "fill-primary text-primary")} />
-            {saved ? 'Guardado' : 'Guardar'}
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleShare}>
-            <Share2 className="h-4 w-4 mr-1" />
-            Partilhar
-          </Button>
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <Button variant="default" size="sm" onClick={scrollToChat}>
+              <MessageCircle className="h-4 w-4 mr-1" />
+              Conversar
+            </Button>
+          </motion.div>
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleLike}
+              className={cn(liked && "border-red-200 bg-red-50 hover:bg-red-100")}
+            >
+              <motion.div
+                animate={liked ? { scale: [1, 1.2, 1] } : {}}
+                transition={{ duration: 0.2 }}
+              >
+                <Heart className={cn("h-4 w-4 mr-1", liked && "fill-red-500 text-red-500")} />
+              </motion.div>
+              {liked ? 'Amei' : 'Curtir'}
+            </Button>
+          </motion.div>
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <Button variant="outline" size="sm" onClick={handleShare}>
+              <Share2 className="h-4 w-4 mr-1" />
+              Partilhar
+            </Button>
+          </motion.div>
         </div>
 
-        {/* 3. Featured image */}
+        {/* 3. Featured image with double-click to like */}
         {article.imageUrl && (
-          <div className="mt-6 overflow-hidden rounded-xl">
+          <div 
+            className="mt-6 overflow-hidden rounded-xl relative cursor-pointer"
+            onDoubleClick={handleImageDoubleClick}
+          >
             <img
               src={article.imageUrl}
               alt=""
               className="w-full aspect-video object-cover"
             />
+            {/* Big heart animation */}
+            <AnimatePresence>
+              {showBigHeart && (
+                <motion.div
+                  className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 1.2, opacity: 0 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                >
+                  <Heart className="h-32 w-32 fill-red-500 text-red-500 drop-shadow-lg" />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
 
@@ -182,8 +234,8 @@ export default function ArticlePage() {
                   key={related.id}
                   article={related}
                   variant="compact"
-                  isSaved={isSaved(related.id)}
-                  onToggleSave={() => toggleSave(related.id)}
+                  isSaved={isLiked(related.id)}
+                  onToggleSave={() => toggleLike(related.id)}
                 />
               ))}
             </div>
@@ -194,7 +246,7 @@ export default function ArticlePage() {
         <div className="mt-8">
           <ArticleChat article={article} />
         </div>
-      </article>
+      </motion.article>
 
       {/* Floating button for mobile */}
       <Button

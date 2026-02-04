@@ -1,4 +1,5 @@
 import { ExternalLink } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { SponsoredAd } from '@/types/news';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -64,9 +65,14 @@ export function SponsoredCard({ ad, variant = 'feed' }: SponsoredCardProps) {
     );
   }
 
-  // Feed variant - full card
+  // Feed variant - full card with animations
   return (
-    <article className="group overflow-hidden rounded-xl border bg-card">
+    <motion.article 
+      className="group overflow-hidden rounded-xl border bg-card"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
       {/* Image */}
       <a href={ad.link} target="_blank" rel="noopener noreferrer">
         <AspectRatio ratio={16 / 9}>
@@ -100,19 +106,21 @@ export function SponsoredCard({ ad, variant = 'feed' }: SponsoredCardProps) {
         )}
         
         <div className="mt-4">
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            asChild
-          >
-            <a href={ad.link} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="h-4 w-4" />
-              Saber mais
-            </a>
-          </Button>
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              asChild
+            >
+              <a href={ad.link} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-4 w-4" />
+                Saber mais
+              </a>
+            </Button>
+          </motion.div>
         </div>
       </div>
-    </article>
+    </motion.article>
   );
 }

@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { TrendingUp } from 'lucide-react';
 import { getTrendingArticles } from '@/data/articles';
 import { sponsoredAds } from '@/data/ads';
@@ -14,11 +15,17 @@ export function RightSidebar({ visible = true }: RightSidebarProps) {
   const trending = getTrendingArticles().slice(0, 4);
 
   return (
-    <aside 
+    <motion.aside 
       className={cn(
-        "sticky top-16 hidden h-[calc(100vh-4rem)] w-72 shrink-0 xl:block transition-opacity duration-300",
-        visible ? "opacity-100" : "opacity-0 pointer-events-none"
+        "sticky top-16 hidden h-[calc(100vh-4rem)] w-72 shrink-0 xl:block"
       )}
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ 
+        opacity: visible ? 1 : 0,
+        x: visible ? 0 : 20,
+        pointerEvents: visible ? 'auto' : 'none'
+      }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
     >
       <div className="flex h-full flex-col py-6 pl-6">
         {/* Trending Section */}
@@ -30,24 +37,35 @@ export function RightSidebar({ visible = true }: RightSidebarProps) {
             </h2>
           </div>
           <div className="flex flex-col gap-4">
-            {trending.map((article) => (
-              <NewsCard
+            {trending.map((article, index) => (
+              <motion.div
                 key={article.id}
-                article={article}
-                variant="sidebar"
-              />
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: index * 0.1 }}
+              >
+                <NewsCard
+                  article={article}
+                  variant="sidebar"
+                />
+              </motion.div>
             ))}
             
             {/* Sponsored item at the end */}
-            <div className="pt-2 border-t">
+            <motion.div 
+              className="pt-2 border-t"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3, delay: 0.4 }}
+            >
               <SponsoredCard 
                 ad={sponsoredAds[1]} 
                 variant="sidebar" 
               />
-            </div>
+            </motion.div>
           </div>
         </div>
       </div>
-    </aside>
+    </motion.aside>
   );
 }

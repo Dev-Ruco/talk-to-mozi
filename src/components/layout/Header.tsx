@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Search, Bookmark } from 'lucide-react';
+import { Search, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import logo from '@/assets/logo.png';
 
@@ -20,8 +20,8 @@ export function Header() {
           </Link>
           <Link to="/guardados">
             <Button variant="ghost" size="icon" className="h-9 w-9">
-              <Bookmark className="h-5 w-5" />
-              <span className="sr-only">Guardados</span>
+              <Heart className="h-5 w-5" />
+              <span className="sr-only">Amei</span>
             </Button>
           </Link>
         </div>
