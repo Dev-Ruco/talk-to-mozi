@@ -37,14 +37,9 @@
 
     --radius: 0.75rem;
 
-    /* Category Colors */
-    --category-economia: 142 71% 45%;
-    --category-politica: 0 84% 60%;
-    --category-sociedade: 48 96% 53%;
-    --category-entretenimento: 280 68% 60%;
-    --category-tecnologia: 217 91% 60%;
-    --category-internacional: 25 95% 53%;
-    --category-desporto: 0 0% 20%;
+    /* Unified Purple Palette */
+    --purple-light: 271 81% 95%;
+    --purple-dark: 271 81% 35%;
 
     /* Sidebar */
     --sidebar-background: 0 0% 98%;

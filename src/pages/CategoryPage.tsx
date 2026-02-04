@@ -22,8 +22,8 @@ export default function CategoryPage() {
     <Layout>
       <div className="space-y-6 py-4">
         <header>
-          <h1 className="font-display text-2xl font-bold md:text-3xl">
-            <span className="mr-2">{category.icon}</span>
+          <h1 className="font-display text-2xl font-bold md:text-3xl flex items-center gap-2">
+            <category.icon className="h-6 w-6 text-primary" />
             {category.name}
           </h1>
           <p className="mt-1 text-muted-foreground">

@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
 import { articles, getArticlesByCategory } from '@/data/articles';
+import { sponsoredAds } from '@/data/ads';
 import { NewsCard } from './NewsCard';
+import { SponsoredCard } from './SponsoredCard';
 import { useSavedArticles } from '@/hooks/useSavedArticles';
 
 interface NewsFeedProps {
@@ -62,17 +64,31 @@ export function NewsFeed({ categoryFilter, initialCount = 6 }: NewsFeedProps) {
     );
   }
 
+  // Insert sponsored cards every 8-10 items
+  const getAdIndex = (index: number) => Math.floor(index / 9) % sponsoredAds.length;
+
   return (
-    <div className="space-y-4">
-      {/* Single column on mobile, 2 columns on desktop */}
-      <div className="flex flex-col gap-4 md:grid md:grid-cols-2">
-        {displayedArticles.map((article) => (
-          <NewsCard
-            key={article.id}
-            article={article}
-            isSaved={isSaved(article.id)}
-            onToggleSave={() => toggleSave(article.id)}
-          />
+    <div className="mx-auto max-w-[600px] space-y-4">
+      {/* Single column, vertical scroll feed */}
+      <div className="flex flex-col gap-4">
+        {displayedArticles.map((article, index) => (
+          <div key={article.id}>
+            <NewsCard
+              article={article}
+              isSaved={isSaved(article.id)}
+              onToggleSave={() => toggleSave(article.id)}
+            />
+            
+            {/* Insert sponsored card after every 8th item */}
+            {(index + 1) % 8 === 0 && index < displayedArticles.length - 1 && (
+              <div className="mt-4">
+                <SponsoredCard 
+                  ad={sponsoredAds[getAdIndex(index)]} 
+                  variant="feed" 
+                />
+              </div>
+            )}
+          </div>
         ))}
       </div>
 

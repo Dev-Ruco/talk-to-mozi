@@ -28,7 +28,7 @@ export default function CategoriesPage() {
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <span className="text-4xl">{category.icon}</span>
+                    <category.icon className="h-10 w-10 text-primary" />
                     <h2 className="mt-3 font-display text-xl font-semibold group-hover:text-primary transition-colors">
                       {category.name}
                     </h2>
@@ -36,7 +36,7 @@ export default function CategoriesPage() {
                       {articleCount} {articleCount === 1 ? 'notícia' : 'notícias'}
                     </p>
                   </div>
-                  <div className={`h-3 w-3 rounded-full ${category.color}`} />
+                  <div className="h-3 w-3 rounded-full bg-primary" />
                 </div>
                 
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />

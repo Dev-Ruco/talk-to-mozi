@@ -10,8 +10,7 @@ export type CategoryId =
 export interface Category {
   id: CategoryId;
   name: string;
-  icon: string;
-  color: string;
+  icon: React.ComponentType<{ className?: string }>;
 }
 
 export interface Article {
@@ -27,6 +26,15 @@ export interface Article {
   quickFacts: string[];
   relatedArticleIds: string[];
   tags?: string[];
+}
+
+export interface SponsoredAd {
+  id: string;
+  title: string;
+  imageUrl: string;
+  sponsor: string;
+  link: string;
+  description?: string;
 }
 
 export interface ChatMessage {

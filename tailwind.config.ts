@@ -61,15 +61,6 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
-        category: {
-          economia: "hsl(var(--category-economia))",
-          politica: "hsl(var(--category-politica))",
-          sociedade: "hsl(var(--category-sociedade))",
-          entretenimento: "hsl(var(--category-entretenimento))",
-          tecnologia: "hsl(var(--category-tecnologia))",
-          internacional: "hsl(var(--category-internacional))",
-          desporto: "hsl(var(--category-desporto))",
-        },
       },
       borderRadius: {
         lg: "var(--radius)",

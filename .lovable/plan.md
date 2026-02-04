@@ -1,5 +1,41 @@
 
-# Transformacao Visual: B NEWS como Rede Social de Noticias
+# B NEWS - Portal de Notícias estilo Rede Social + IA
+
+## ✅ Implementado
+
+### 1. Hero com Carousel Visual
+- Carousel Embla com autoplay (5s)
+- 3 notícias + 1 sponsored card
+- Imagem grande com gradiente e título sobreposto
+- Botão "Conversar" em cada card
+
+### 2. Feed Estilo Rede Social  
+- Cards verticais com imagem grande (16:9)
+- Coluna única centrada (max 600px)
+- Scroll infinito
+- Botão "Conversar" primário
+
+### 3. Sistema de Publicidade
+- SponsoredCard com 3 variantes (feed, sidebar, carousel)
+- Mock data de 4 anúncios
+- Inserção automática a cada 8 notícias
+- Etiqueta "PATROCINADO"
+
+### 4. Paleta Unificada
+- Cores monocromáticas (roxo/branco/cinza)
+- Ícones Lucide em vez de emojis
+- Badges com estilo consistente
+
+### 5. Sidebar Tendências Visual
+- Cards com imagem 64x64
+- Sponsored card no final
+
+---
+
+## Próximos Passos
+- Integrar IA real para chat
+- Dark mode
+- PWA para mobile
 
 Redesenho completo para um look moderno tipo Instagram/Twitter, com foco em imagens grandes, scroll vertical fluido e integracao de publicidade nativa.
 
