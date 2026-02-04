@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Sparkles, ArrowRight, Send } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Send, MessageCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { getLatestArticles } from '@/data/articles';
 
 export function HeroChat() {
   const [query, setQuery] = useState('');
+  const navigate = useNavigate();
   const latestArticles = getLatestArticles(4);
 
   const suggestions = latestArticles.map(article => ({
@@ -14,60 +15,87 @@ export function HeroChat() {
     text: generateSuggestion(article.title, article.category),
   }));
 
+  const quickTopics = ['inflação', 'combustível', 'chuvas', 'política', 'dólar', 'saúde', 'educação'];
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (query.trim()) {
+      navigate(`/chat?q=${encodeURIComponent(query.trim())}`);
+    }
+  };
+
+  const handleSuggestionClick = (text: string) => {
+    navigate(`/chat?q=${encodeURIComponent(text)}`);
+  };
+
   return (
-    <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 p-6 md:p-8">
-      {/* Decorative elements */}
-      <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
-      <div className="absolute -bottom-10 -left-10 h-32 w-32 rounded-full bg-primary/5 blur-2xl" />
-      
-      <div className="relative">
-        <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1">
-          <Sparkles className="h-4 w-4 text-primary" />
-          <span className="text-xs font-medium text-primary">Alimentado por IA</span>
+    <section className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-8 md:min-h-[60vh] md:py-12">
+      <div className="w-full max-w-2xl space-y-8 text-center">
+        {/* Main title */}
+        <div className="space-y-3">
+          <div className="inline-flex items-center gap-2 text-primary">
+            <MessageCircle className="h-5 w-5" />
+            <span className="text-sm font-medium">Alimentado por IA</span>
+          </div>
+          <h1 className="font-display text-3xl font-bold leading-tight md:text-4xl lg:text-5xl">
+            O que aconteceu hoje em{' '}
+            <span className="text-primary">Moçambique</span>?
+          </h1>
         </div>
         
-        <h1 className="font-display text-2xl font-bold leading-tight md:text-3xl lg:text-4xl">
-          O que aconteceu hoje em{' '}
-          <span className="text-primary">Moçambique</span>?
-        </h1>
-        
-        <p className="mt-2 text-muted-foreground md:text-lg">
-          Pergunte qualquer coisa sobre as notícias do dia
-        </p>
-        
-        {/* Search input */}
-        <div className="mt-6 flex gap-2">
-          <div className="relative flex-1">
+        {/* Chat input */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="relative">
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Ex: Qual o impacto da nova lei de descentralização?"
-              className="h-12 pr-12 text-base"
+              placeholder="Escreva qualquer tema: inflação, chuvas, política, dólar…"
+              className="h-14 pr-14 text-base md:h-16 md:text-lg"
             />
             <Button
+              type="submit"
               size="icon"
-              className="absolute right-1 top-1 h-10 w-10"
+              className="absolute right-2 top-1/2 h-10 w-10 -translate-y-1/2 md:h-12 md:w-12"
             >
-              <Send className="h-4 w-4" />
+              <Send className="h-5 w-5" />
             </Button>
           </div>
-        </div>
+          
+          {/* Quick topics */}
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Exemplos do que pode perguntar:
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {quickTopics.map((topic) => (
+                <button
+                  key={topic}
+                  type="button"
+                  onClick={() => handleSuggestionClick(topic)}
+                  className="rounded-full border bg-background px-3 py-1 text-xs transition-colors hover:border-primary hover:text-primary"
+                >
+                  {topic}
+                </button>
+              ))}
+            </div>
+          </div>
+        </form>
         
-        {/* Suggestions */}
-        <div className="mt-6 space-y-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+        {/* Dynamic suggestions */}
+        <div className="space-y-3 pt-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Sugestões de hoje
           </p>
-          <div className="flex flex-col gap-2 md:flex-row md:flex-wrap">
+          <div className="flex flex-col gap-2">
             {suggestions.map((suggestion) => (
-              <Link
+              <button
                 key={suggestion.id}
-                to={`/artigo/${suggestion.id}`}
-                className="group flex items-center justify-between gap-2 rounded-xl border bg-background/60 px-4 py-3 text-sm transition-colors hover:border-primary/50 hover:bg-primary/5"
+                onClick={() => handleSuggestionClick(suggestion.text)}
+                className="group flex items-center justify-between gap-3 rounded-lg border bg-background px-4 py-3 text-left text-sm transition-colors hover:border-primary/50 hover:bg-primary/5"
               >
                 <span className="line-clamp-1">{suggestion.text}</span>
-                <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
-              </Link>
+                <MessageCircle className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
+              </button>
             ))}
           </div>
         </div>
@@ -79,43 +107,35 @@ export function HeroChat() {
 function generateSuggestion(title: string, category: string): string {
   const templates: Record<string, string[]> = {
     economia: [
-      'Qual o impacto económico de — ',
-      'Entenda em 2 minutos: ',
-      'O que significa para a carteira: ',
+      'Economia: ',
+      'Impacto económico de ',
     ],
     politica: [
       'Nova medida do Governo — ',
-      'O que muda com: ',
-      'Impacto da decisão: ',
+      'Política: ',
     ],
     sociedade: [
-      'Como afecta a população: ',
+      'Sociedade: ',
       'O que saber sobre: ',
-      'Situação actual: ',
     ],
     entretenimento: [
       'Destaque cultural: ',
-      'Em cena: ',
     ],
     tecnologia: [
-      'Inovação em Moçambique: ',
       'Tecnologia: ',
     ],
     internacional: [
-      'Moçambique e o mundo: ',
-      'Relações internacionais: ',
+      'Internacional: ',
     ],
     desporto: [
-      'Desporto nacional: ',
-      'Resultados: ',
+      'Desporto: ',
     ],
   };
 
   const categoryTemplates = templates[category] || [''];
   const template = categoryTemplates[Math.floor(Math.random() * categoryTemplates.length)];
   
-  // Shorten title if too long
-  const shortTitle = title.length > 50 ? title.substring(0, 50) + '...' : title;
+  const shortTitle = title.length > 45 ? title.substring(0, 45) + '...' : title;
   
   return template + shortTitle;
 }

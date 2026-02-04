@@ -11,10 +11,9 @@ interface ArticleChatProps {
 
 const defaultSuggestions = [
   { id: '1', text: 'Explica isto de forma simples' },
-  { id: '2', text: 'Qual o impacto na economia?' },
+  { id: '2', text: 'Qual o impacto disto?' },
   { id: '3', text: 'Quem ganha e quem perde?' },
   { id: '4', text: 'Isto já aconteceu antes?' },
-  { id: '5', text: 'Mostra notícias relacionadas' },
 ];
 
 export function ArticleChat({ article }: ArticleChatProps) {
@@ -38,8 +37,8 @@ export function ArticleChat({ article }: ArticleChatProps) {
       return `Em resumo, ${article.summary.toLowerCase()} Esta é uma situação importante para o país porque afecta directamente a vida das pessoas. O mais importante a reter é que ${article.quickFacts[0]?.toLowerCase() || 'existem mudanças significativas em curso'}.`;
     }
     
-    if (lowerQuestion.includes('economia') || lowerQuestion.includes('económico')) {
-      return `Do ponto de vista económico, esta notícia tem implicações importantes. ${article.category === 'economia' ? article.summary : 'Embora não seja directamente uma notícia económica, pode afectar a economia através de vários canais.'} Os analistas estimam que os efeitos se farão sentir nos próximos meses.`;
+    if (lowerQuestion.includes('impacto')) {
+      return `Do ponto de vista do impacto, esta notícia tem implicações importantes para Moçambique. ${article.summary} Os analistas estimam que os efeitos se farão sentir nos próximos meses em várias áreas da sociedade.`;
     }
     
     if (lowerQuestion.includes('ganha') || lowerQuestion.includes('perde')) {
@@ -48,13 +47,6 @@ export function ArticleChat({ article }: ArticleChatProps) {
     
     if (lowerQuestion.includes('antes') || lowerQuestion.includes('histórico')) {
       return `Historicamente, situações semelhantes já ocorreram em Moçambique. Nos últimos anos, temos visto desenvolvimentos parecidos, embora cada caso tenha as suas particularidades. O contexto actual é diferente devido às mudanças políticas e económicas recentes.`;
-    }
-    
-    if (lowerQuestion.includes('relacionad')) {
-      const related = article.relatedArticleIds.length > 0 
-        ? 'Existem várias notícias relacionadas que pode explorar na secção abaixo deste chat.'
-        : 'No momento, não há notícias directamente relacionadas no nosso sistema.';
-      return `${related} Pode também pesquisar por temas específicos na página de pesquisa para encontrar mais contexto sobre este assunto.`;
     }
     
     // Default response
@@ -102,34 +94,34 @@ export function ArticleChat({ article }: ArticleChatProps) {
   };
 
   return (
-    <div id="chat" className="rounded-xl border bg-gradient-to-br from-primary/5 to-background overflow-hidden">
-      {/* Header */}
-      <div className="border-b bg-background/50 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-            <Sparkles className="h-4 w-4 text-primary" />
+    <div id="chat" className="rounded-xl border overflow-hidden">
+      {/* Highlight header */}
+      <div className="bg-gradient-to-r from-primary/10 to-primary/5 px-4 py-4 border-b">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20">
+            <Sparkles className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h3 className="font-semibold text-sm">Conversar com a Notícia</h3>
-            <p className="text-xs text-muted-foreground">Pergunte qualquer coisa</p>
+            <h3 className="font-display font-semibold">Explore esta notícia com IA</h3>
+            <p className="text-sm text-muted-foreground">Faça perguntas sobre o conteúdo</p>
           </div>
+          {messages.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={resetChat} className="ml-auto">
+              <RefreshCw className="h-4 w-4 mr-1" />
+              Reiniciar
+            </Button>
+          )}
         </div>
-        {messages.length > 0 && (
-          <Button variant="ghost" size="sm" onClick={resetChat}>
-            <RefreshCw className="h-4 w-4 mr-1" />
-            Reiniciar
-          </Button>
-        )}
       </div>
 
       {/* Messages or Suggestions */}
-      <div className="min-h-[200px] max-h-[400px] overflow-y-auto p-4">
+      <div className="min-h-[180px] max-h-[400px] overflow-y-auto p-4 bg-muted/20">
         {messages.length === 0 ? (
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Explore esta notícia através de perguntas:
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground text-center">
+              Perguntas sugeridas:
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap justify-center gap-2">
               {defaultSuggestions.map((suggestion) => (
                 <button
                   key={suggestion.id}
@@ -155,8 +147,8 @@ export function ArticleChat({ article }: ArticleChatProps) {
                   className={cn(
                     "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm",
                     message.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted'
+                      ? 'bg-primary text-primary-foreground rounded-br-md'
+                      : 'bg-background border rounded-bl-md'
                   )}
                 >
                   <p className="whitespace-pre-line">{message.content}</p>
@@ -165,11 +157,11 @@ export function ArticleChat({ article }: ArticleChatProps) {
             ))}
             {isLoading && (
               <div className="flex gap-3">
-                <div className="bg-muted rounded-2xl px-4 py-3">
+                <div className="bg-background border rounded-2xl rounded-bl-md px-4 py-3">
                   <div className="flex gap-1">
-                    <span className="h-2 w-2 rounded-full bg-primary/40 animate-pulse" />
-                    <span className="h-2 w-2 rounded-full bg-primary/40 animate-pulse [animation-delay:150ms]" />
-                    <span className="h-2 w-2 rounded-full bg-primary/40 animate-pulse [animation-delay:300ms]" />
+                    <span className="h-2 w-2 rounded-full bg-primary/40 animate-bounce [animation-delay:-0.3s]" />
+                    <span className="h-2 w-2 rounded-full bg-primary/40 animate-bounce [animation-delay:-0.15s]" />
+                    <span className="h-2 w-2 rounded-full bg-primary/40 animate-bounce" />
                   </div>
                 </div>
               </div>
@@ -180,7 +172,7 @@ export function ArticleChat({ article }: ArticleChatProps) {
       </div>
 
       {/* Input */}
-      <div className="border-t bg-background/50 p-4">
+      <div className="border-t bg-background p-4">
         <div className="flex gap-2">
           <Input
             value={input}

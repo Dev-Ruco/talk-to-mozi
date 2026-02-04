@@ -26,6 +26,7 @@ export interface Article {
   author: string;
   quickFacts: string[];
   relatedArticleIds: string[];
+  tags?: string[];
 }
 
 export interface ChatMessage {

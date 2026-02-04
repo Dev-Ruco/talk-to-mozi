@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Article } from '@/types/news';
 import { articles, getArticlesByCategory } from '@/data/articles';
 import { NewsCard } from './NewsCard';
 import { useSavedArticles } from '@/hooks/useSavedArticles';
@@ -53,14 +52,20 @@ export function NewsFeed({ categoryFilter, initialCount = 6 }: NewsFeedProps) {
   if (displayedArticles.length === 0) {
     return (
       <div className="py-12 text-center">
-        <p className="text-muted-foreground">Nenhuma notícia encontrada nesta categoria.</p>
+        <p className="text-muted-foreground">
+          Ainda não há notícias aqui.
+        </p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Experimente perguntar no chat sobre este tema.
+        </p>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2">
+      {/* Single column on mobile, 2 columns on desktop */}
+      <div className="flex flex-col gap-4 md:grid md:grid-cols-2">
         {displayedArticles.map((article) => (
           <NewsCard
             key={article.id}

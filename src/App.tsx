@@ -7,7 +7,7 @@ import Index from "./pages/Index";
 import ArticlePage from "./pages/ArticlePage";
 import CategoryPage from "./pages/CategoryPage";
 import CategoriesPage from "./pages/CategoriesPage";
-import SearchPage from "./pages/SearchPage";
+import ChatPage from "./pages/ChatPage";
 import SavedPage from "./pages/SavedPage";
 import ProfilePage from "./pages/ProfilePage";
 import NotFound from "./pages/NotFound";
@@ -25,7 +25,7 @@ const App = () => (
           <Route path="/artigo/:id" element={<ArticlePage />} />
           <Route path="/categoria/:categoryId" element={<CategoryPage />} />
           <Route path="/categorias" element={<CategoriesPage />} />
-          <Route path="/pesquisa" element={<SearchPage />} />
+          <Route path="/chat" element={<ChatPage />} />
           <Route path="/guardados" element={<SavedPage />} />
           <Route path="/perfil" element={<ProfilePage />} />
           <Route path="*" element={<NotFound />} />

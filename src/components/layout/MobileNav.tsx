@@ -1,11 +1,11 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Grid3X3, Search, Bookmark, User } from 'lucide-react';
+import { Home, Grid3X3, MessageCircle, Bookmark, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { icon: Home, label: 'Início', path: '/' },
   { icon: Grid3X3, label: 'Categorias', path: '/categorias' },
-  { icon: Search, label: 'Pesquisa', path: '/pesquisa' },
+  { icon: MessageCircle, label: 'Chat', path: '/chat' },
   { icon: Bookmark, label: 'Guardados', path: '/guardados' },
   { icon: User, label: 'Perfil', path: '/perfil' },
 ];
