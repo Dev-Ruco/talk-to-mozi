@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import { Article } from '../../types/admin';
 
 interface ContentPanelProps {
@@ -14,19 +15,65 @@ interface ContentPanelProps {
   onUpdate: (updates: Partial<Article>) => void;
 }
 
+type AIAction = 'rewrite' | 'shorten' | 'journalistic';
+
+const ACTION_LABELS: Record<AIAction, string> = {
+  rewrite: 'Reformular',
+  shorten: 'Encurtar',
+  journalistic: 'Tom Jornalístico',
+};
+
 export function ContentPanel({ article, onUpdate }: ContentPanelProps) {
   const [isRewriting, setIsRewriting] = useState(false);
+  const [currentAction, setCurrentAction] = useState<AIAction | null>(null);
   const [tagInput, setTagInput] = useState('');
 
-  const handleAIAction = async (action: 'rewrite' | 'shorten' | 'journalistic') => {
+  const handleAIAction = async (action: AIAction) => {
     setIsRewriting(true);
+    setCurrentAction(action);
+    
     try {
-      // TODO: Integrate with AI Gateway
-      toast.info(`Acção IA: ${action} - Em desenvolvimento`);
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      toast.success('Funcionalidade IA será integrada em breve');
+      toast.info(`A ${ACTION_LABELS[action].toLowerCase()}...`);
+      
+      const { data, error } = await supabase.functions.invoke('rewrite-article', {
+        body: {
+          article_id: article.id,
+          action,
+          // Send current unsaved content if available
+          title: article.title || article.original_title,
+          content: article.content || article.original_content,
+        },
+      });
+
+      if (error) {
+        console.error('AI error:', error);
+        if (error.message?.includes('429')) {
+          toast.error('Limite de pedidos excedido. Tente novamente em alguns minutos.');
+        } else if (error.message?.includes('402')) {
+          toast.error('Créditos de IA esgotados. Contacte o administrador.');
+        } else {
+          toast.error('Erro ao reformular: ' + error.message);
+        }
+        return;
+      }
+
+      if (data?.success) {
+        onUpdate({
+          title: data.title,
+          lead: data.lead,
+          content: data.content,
+          status: 'rewritten',
+        });
+        toast.success('Artigo reformulado com sucesso!');
+      } else {
+        toast.error(data?.error || 'Erro desconhecido ao reformular');
+      }
+    } catch (err) {
+      console.error('AI action error:', err);
+      toast.error('Erro de comunicação com o serviço de IA');
     } finally {
       setIsRewriting(false);
+      setCurrentAction(null);
     }
   };
 

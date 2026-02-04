@@ -19,6 +19,7 @@ export type Database = {
           action: string | null
           articles_found: number | null
           articles_saved: number | null
+          details: Json | null
           error_message: string | null
           executed_at: string | null
           id: string
@@ -29,6 +30,7 @@ export type Database = {
           action?: string | null
           articles_found?: number | null
           articles_saved?: number | null
+          details?: Json | null
           error_message?: string | null
           executed_at?: string | null
           id?: string
@@ -39,6 +41,7 @@ export type Database = {
           action?: string | null
           articles_found?: number | null
           articles_saved?: number | null
+          details?: Json | null
           error_message?: string | null
           executed_at?: string | null
           id?: string
