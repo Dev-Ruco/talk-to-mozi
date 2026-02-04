@@ -25,7 +25,8 @@ O sector imobiliário e o crédito ao consumo deverão ser os principais benefic
       'Impacto esperado de 0,3-0,5% no PIB',
       'Sector imobiliário será o mais beneficiado'
     ],
-    relatedArticleIds: ['3', '7']
+    relatedArticleIds: ['3', '7'],
+    tags: ['Banco de Moçambique', 'Taxa de juro', 'Política monetária']
   },
   {
     id: '2',
@@ -51,7 +52,8 @@ A implementação será faseada ao longo de cinco anos, com as primeiras eleiç�
       'Implementação faseada em 5 anos',
       'Transferência de competências em educação e saúde'
     ],
-    relatedArticleIds: ['5', '10']
+    relatedArticleIds: ['5', '10'],
+    tags: ['Assembleia da República', 'Descentralização', 'Autarquias']
   },
   {
     id: '3',
@@ -77,7 +79,8 @@ O turismo registou um crescimento surpreendente de 45% nos investimentos, impuls
       'Sector de energia lidera com 60%',
       'Turismo cresceu 45%'
     ],
-    relatedArticleIds: ['1', '8']
+    relatedArticleIds: ['1', '8'],
+    tags: ['Investimento', 'Gás natural', 'Turismo']
   },
   {
     id: '4',
@@ -103,7 +106,8 @@ A previsão meteorológica indica que as chuvas deverão continuar nas próximas
       '8 mil famílias deslocadas',
       'Chuvas devem continuar por mais 2 semanas'
     ],
-    relatedArticleIds: ['11', '14']
+    relatedArticleIds: ['11', '14'],
+    tags: ['Chuvas', 'Nampula', 'Zambézia', 'INGC']
   },
   {
     id: '5',

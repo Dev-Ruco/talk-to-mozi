@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { Header } from './Header';
 import { MobileNav } from './MobileNav';
 import { DesktopSidebar } from './DesktopSidebar';
@@ -10,6 +10,23 @@ interface LayoutProps {
 }
 
 export function Layout({ children, showSidebars = true }: LayoutProps) {
+  const [showRightSidebar, setShowRightSidebar] = useState(false);
+
+  // Show right sidebar only after scrolling past the hero
+  useEffect(() => {
+    if (!showSidebars) return;
+
+    const handleScroll = () => {
+      const scrolled = window.scrollY > window.innerHeight * 0.5;
+      setShowRightSidebar(scrolled);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    handleScroll(); // Check initial state
+    
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [showSidebars]);
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -22,7 +39,9 @@ export function Layout({ children, showSidebars = true }: LayoutProps) {
             {children}
           </main>
           
-          {showSidebars && <RightSidebar />}
+          {showSidebars && (
+            <RightSidebar visible={showRightSidebar} />
+          )}
         </div>
       </div>
       

@@ -1,4 +1,5 @@
 import { useParams, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { ArrowLeft, Clock, Calendar, Share2, Bookmark, MessageCircle } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { ArticleChat } from '@/components/news/ArticleChat';
@@ -13,8 +14,24 @@ import { cn } from '@/lib/utils';
 export default function ArticlePage() {
   const { id } = useParams<{ id: string }>();
   const { isSaved, toggleSave } = useSavedArticles();
+  const [showFloatingButton, setShowFloatingButton] = useState(true);
   
   const article = getArticleById(id || '');
+  
+  // Hide floating button when near the chat section
+  useEffect(() => {
+    const handleScroll = () => {
+      const chatElement = document.getElementById('chat');
+      if (chatElement) {
+        const rect = chatElement.getBoundingClientRect();
+        setShowFloatingButton(rect.top > window.innerHeight);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
   
   if (!article) {
     return (
@@ -60,65 +77,64 @@ export default function ArticlePage() {
           Voltar
         </Link>
 
-        {/* Header */}
-        <header className="mb-6">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <Badge 
-              variant="secondary" 
-              className={cn("text-xs", getCategoryColor(article.category))}
-            >
-              {category?.icon} {category?.name}
-            </Badge>
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Calendar className="h-3 w-3" />
-              {new Date(article.publishedAt).toLocaleDateString('pt-MZ', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric'
-              })}
-            </span>
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Clock className="h-3 w-3" />
-              {article.readingTime} min de leitura
-            </span>
-          </div>
+        {/* 1. Title */}
+        <h1 className="font-display text-2xl font-bold leading-tight md:text-3xl lg:text-4xl">
+          {article.title}
+        </h1>
 
-          <h1 className="font-display text-2xl font-bold leading-tight md:text-3xl lg:text-4xl">
-            {article.title}
-          </h1>
+        {/* 2. Meta information */}
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Badge 
+            variant="secondary" 
+            className={cn("text-xs", getCategoryColor(article.category))}
+          >
+            {category?.icon} {category?.name}
+          </Badge>
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Calendar className="h-3 w-3" />
+            {new Date(article.publishedAt).toLocaleDateString('pt-MZ', {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric'
+            })}
+          </span>
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Clock className="h-3 w-3" />
+            {article.readingTime} min de leitura
+          </span>
+        </div>
 
-          <p className="mt-3 text-lg text-muted-foreground">
-            {article.summary}
-          </p>
+        <p className="mt-3 text-lg text-muted-foreground">
+          {article.summary}
+        </p>
 
-          <p className="mt-2 text-sm text-muted-foreground">
-            Por <span className="font-medium text-foreground">{article.author}</span>
-          </p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Por <span className="font-medium text-foreground">{article.author}</span>
+        </p>
 
-          {/* Action buttons */}
-          <div className="mt-4 flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={scrollToChat}>
-              <MessageCircle className="h-4 w-4 mr-1" />
-              Conversar
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => toggleSave(article.id)}
-            >
-              <Bookmark className={cn("h-4 w-4 mr-1", saved && "fill-primary text-primary")} />
-              {saved ? 'Guardado' : 'Guardar'}
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleShare}>
-              <Share2 className="h-4 w-4 mr-1" />
-              Partilhar
-            </Button>
-          </div>
-        </header>
+        {/* Action buttons */}
+        <div className="mt-4 flex items-center gap-2">
+          <Button variant="default" size="sm" onClick={scrollToChat}>
+            <MessageCircle className="h-4 w-4 mr-1" />
+            Conversar
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => toggleSave(article.id)}
+          >
+            <Bookmark className={cn("h-4 w-4 mr-1", saved && "fill-primary text-primary")} />
+            {saved ? 'Guardado' : 'Guardar'}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleShare}>
+            <Share2 className="h-4 w-4 mr-1" />
+            Partilhar
+          </Button>
+        </div>
 
-        {/* Featured image */}
+        {/* 3. Featured image */}
         {article.imageUrl && (
-          <div className="mb-8 overflow-hidden rounded-xl">
+          <div className="mt-6 overflow-hidden rounded-xl">
             <img
               src={article.imageUrl}
               alt=""
@@ -127,16 +143,16 @@ export default function ArticlePage() {
           </div>
         )}
 
-        {/* Content */}
-        <div className="prose prose-lg max-w-none">
+        {/* 4. Content - very legible */}
+        <div className="mt-8 space-y-4">
           {article.content.split('\n\n').map((paragraph, index) => (
-            <p key={index} className="text-foreground leading-relaxed mb-4">
+            <p key={index} className="text-lg leading-relaxed text-foreground">
               {paragraph}
             </p>
           ))}
         </div>
 
-        {/* Quick Facts */}
+        {/* 5. Quick Facts */}
         {article.quickFacts.length > 0 && (
           <div className="mt-8 rounded-xl border bg-muted/30 p-6">
             <h2 className="font-display text-lg font-semibold mb-4">
@@ -153,15 +169,10 @@ export default function ArticlePage() {
           </div>
         )}
 
-        {/* Chat with article */}
-        <div className="mt-8">
-          <ArticleChat article={article} />
-        </div>
-
-        {/* Related articles */}
+        {/* 6. Related articles */}
         {relatedArticles.length > 0 && (
-          <section className="mt-12 border-t pt-8">
-            <h2 className="font-display text-xl font-semibold mb-4">
+          <section className="mt-8 border-t pt-6">
+            <h2 className="font-display text-lg font-semibold mb-4">
               Notícias Relacionadas
             </h2>
             <div className="grid gap-4 md:grid-cols-2">
@@ -177,7 +188,26 @@ export default function ArticlePage() {
             </div>
           </section>
         )}
+
+        {/* 7. Chat with article (at the end) */}
+        <div className="mt-8">
+          <ArticleChat article={article} />
+        </div>
       </article>
+
+      {/* Floating button for mobile */}
+      <Button
+        className={cn(
+          "fixed bottom-20 right-4 z-40 gap-2 shadow-lg md:hidden transition-all duration-300",
+          showFloatingButton 
+            ? "translate-y-0 opacity-100" 
+            : "translate-y-20 opacity-0 pointer-events-none"
+        )}
+        onClick={scrollToChat}
+      >
+        <MessageCircle className="h-4 w-4" />
+        Conversar
+      </Button>
     </Layout>
   );
 }

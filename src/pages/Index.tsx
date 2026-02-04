@@ -9,20 +9,25 @@ const Index = () => {
 
   return (
     <Layout>
-      <div className="space-y-6 py-4">
+      <div className="space-y-6">
+        {/* Hero Chat - 70vh dominante */}
         <HeroChat />
         
-        <div>
+        {/* Transition separator */}
+        <div className="border-t pt-6">
+          <p className="mb-4 text-center text-sm font-medium text-muted-foreground">
+            Últimas notícias de hoje
+          </p>
+          
+          {/* Category chips */}
           <CategoryChips 
             selectedCategory={selectedCategory} 
             onSelect={setSelectedCategory} 
           />
         </div>
 
+        {/* News Feed */}
         <section>
-          <h2 className="mb-4 font-display text-xl font-semibold">
-            {selectedCategory ? 'Notícias' : 'Últimas Notícias'}
-          </h2>
           <NewsFeed categoryFilter={selectedCategory} />
         </section>
       </div>

@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom';
-import { Clock, MessageCircle, Bookmark, Share2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Clock, MessageCircle, Bookmark } from 'lucide-react';
 import { Article } from '@/types/news';
 import { getCategoryById, getCategoryColor } from '@/data/categories';
 import { Badge } from '@/components/ui/badge';
@@ -10,29 +10,27 @@ interface NewsCardProps {
   article: Article;
   isSaved?: boolean;
   onToggleSave?: () => void;
-  variant?: 'default' | 'compact';
+  variant?: 'default' | 'compact' | 'minimal';
 }
 
 export function NewsCard({ article, isSaved, onToggleSave, variant = 'default' }: NewsCardProps) {
+  const navigate = useNavigate();
   const category = getCategoryById(article.category);
   const timeAgo = getTimeAgo(article.publishedAt);
 
-  const handleShare = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (navigator.share) {
-      await navigator.share({
-        title: article.title,
-        text: article.summary,
-        url: `${window.location.origin}/artigo/${article.id}`,
-      });
-    }
-  };
-
   const handleSave = (e: React.MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     onToggleSave?.();
   };
 
+  const handleChat = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigate(`/artigo/${article.id}#chat`);
+  };
+
+  // Compact variant for related articles
   if (variant === 'compact') {
     return (
       <Link
@@ -49,9 +47,6 @@ export function NewsCard({ article, isSaved, onToggleSave, variant = 'default' }
           <h3 className="font-display font-semibold leading-tight line-clamp-2 group-hover:text-primary transition-colors">
             {article.title}
           </h3>
-          <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
-            {article.summary}
-          </p>
           <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
             <span>{timeAgo}</span>
             <span className="flex items-center gap-1">
@@ -60,94 +55,77 @@ export function NewsCard({ article, isSaved, onToggleSave, variant = 'default' }
             </span>
           </div>
         </div>
-        {article.imageUrl && (
-          <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg">
-            <img
-              src={article.imageUrl}
-              alt=""
-              className="h-full w-full object-cover transition-transform group-hover:scale-105"
-            />
-          </div>
-        )}
       </Link>
     );
   }
 
+  // Default minimal card for feed (no image)
   return (
-    <article className="group overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-lg">
+    <article className="group rounded-xl border bg-card p-4 transition-shadow hover:shadow-md">
+      {/* Header: Category + Time */}
+      <div className="mb-3 flex items-center gap-2">
+        <Badge 
+          variant="secondary" 
+          className={cn("text-[10px]", getCategoryColor(article.category))}
+        >
+          {category?.name}
+        </Badge>
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Clock className="h-3 w-3" />
+          {article.readingTime} min
+        </span>
+      </div>
+      
+      {/* Title */}
       <Link to={`/artigo/${article.id}`}>
-        {article.imageUrl && (
-          <div className="aspect-video overflow-hidden">
-            <img
-              src={article.imageUrl}
-              alt=""
-              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-            />
-          </div>
-        )}
+        <h3 className="font-display text-lg font-semibold leading-tight line-clamp-2 group-hover:text-primary transition-colors">
+          {article.title}
+        </h3>
       </Link>
       
-      <div className="p-4">
-        <div className="mb-2 flex items-center gap-2">
-          <Badge 
-            variant="secondary" 
-            className={cn("text-[10px]", getCategoryColor(article.category))}
-          >
-            {category?.name}
-          </Badge>
-          <span className="text-xs text-muted-foreground">{timeAgo}</span>
-        </div>
-        
-        <Link to={`/artigo/${article.id}`}>
-          <h3 className="font-display text-lg font-semibold leading-tight line-clamp-2 group-hover:text-primary transition-colors">
-            {article.title}
-          </h3>
-        </Link>
-        
-        <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
-          {article.summary}
+      {/* Summary */}
+      <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
+        {article.summary}
+      </p>
+
+      {/* Related topics hint */}
+      {article.tags && article.tags.length > 0 && (
+        <p className="mt-2 text-xs text-muted-foreground/70">
+          Relacionado com: {article.tags.slice(0, 2).join(', ')}
         </p>
+      )}
+      
+      {/* Actions */}
+      <div className="mt-4 flex items-center gap-2">
+        <Button
+          variant="default"
+          size="sm"
+          className="gap-1.5"
+          onClick={handleChat}
+        >
+          <MessageCircle className="h-4 w-4" />
+          Conversar
+        </Button>
         
-        <div className="mt-4 flex items-center justify-between">
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Clock className="h-3.5 w-3.5" />
-            <span>{article.readingTime} min de leitura</span>
-          </div>
-          
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              asChild
-            >
-              <Link to={`/artigo/${article.id}#chat`}>
-                <MessageCircle className="h-4 w-4" />
-                <span className="sr-only">Conversar</span>
-              </Link>
-            </Button>
-            
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={handleSave}
-            >
-              <Bookmark className={cn("h-4 w-4", isSaved && "fill-primary text-primary")} />
-              <span className="sr-only">{isSaved ? 'Remover' : 'Guardar'}</span>
-            </Button>
-            
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={handleShare}
-            >
-              <Share2 className="h-4 w-4" />
-              <span className="sr-only">Partilhar</span>
-            </Button>
-          </div>
-        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          asChild
+        >
+          <Link to={`/artigo/${article.id}`}>
+            Abrir
+          </Link>
+        </Button>
+        
+        <Button
+          variant="ghost"
+          size="icon"
+          className="ml-auto h-8 w-8"
+          onClick={handleSave}
+        >
+          <Bookmark className={cn("h-4 w-4", isSaved && "fill-primary text-primary")} />
+          <span className="sr-only">{isSaved ? 'Remover' : 'Guardar'}</span>
+        </Button>
       </div>
     </article>
   );
