@@ -74,6 +74,33 @@ export interface UserRole {
   role: AppRole;
 }
 
+export interface AgentLogDetails {
+  message?: string;
+  source_name?: string;
+  source_url?: string;
+  source_type?: string;
+  response_size_kb?: number;
+  duration_ms?: number;
+  items_found?: number;
+  items_saved?: number;
+  duplicates_skipped?: number;
+  article_id?: string;
+  article_title?: string;
+  error?: string;
+  existing_urls?: number;
+  existing_titles?: number;
+  sources_processed?: number;
+  total_found?: number;
+  total_saved?: number;
+  total_duplicates?: number;
+  errors_count?: number;
+  action_type?: string;
+  title_preview?: string;
+  tokens_used?: number;
+  timestamp?: string;
+  source_filter?: string;
+}
+
 export interface AgentLog {
   id: string;
   source_id: string | null;
@@ -83,6 +110,7 @@ export interface AgentLog {
   articles_saved: number;
   error_message: string | null;
   executed_at: string;
+  details?: AgentLogDetails | null;
   source?: Source;
 }
 

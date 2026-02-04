@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
 interface RssItem {
@@ -21,6 +21,46 @@ interface Source {
   type: string;
   categories: string[] | null;
   is_active: boolean;
+  articles_captured: number;
+}
+
+type LogAction = 
+  | 'agent_start'
+  | 'fetch_start'
+  | 'fetch_complete'
+  | 'parse_rss'
+  | 'duplicate_check'
+  | 'article_save'
+  | 'source_complete'
+  | 'agent_complete';
+
+// Helper function to log each step in realtime
+async function logStep(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  action: LogAction,
+  status: 'success' | 'error' | 'info',
+  details: Record<string, unknown>,
+  sourceId?: string,
+  articlesFound = 0,
+  articlesSaved = 0,
+  errorMessage?: string
+) {
+  try {
+    await supabase.from('agent_logs').insert({
+      source_id: sourceId || null,
+      action,
+      status,
+      articles_found: articlesFound,
+      articles_saved: articlesSaved,
+      error_message: errorMessage || null,
+      details,
+      executed_at: new Date().toISOString(),
+    });
+    console.log(`[${action}] ${status}: ${JSON.stringify(details)}`);
+  } catch (e) {
+    console.error('Failed to log step:', e);
+  }
 }
 
 // Simple RSS parser
@@ -78,6 +118,8 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  const startTime = Date.now();
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -93,6 +135,13 @@ Deno.serve(async (req) => {
       // No body or invalid JSON, process all sources
     }
 
+    // Log agent start
+    await logStep(supabase, 'agent_start', 'info', {
+      message: 'Agente iniciado',
+      source_filter: sourceId || 'todas as fontes',
+      timestamp: new Date().toISOString(),
+    });
+
     // Fetch active sources
     let sourcesQuery = supabase
       .from('sources')
@@ -106,10 +155,17 @@ Deno.serve(async (req) => {
     const { data: sources, error: sourcesError } = await sourcesQuery;
 
     if (sourcesError) {
+      await logStep(supabase, 'agent_start', 'error', {
+        error: sourcesError.message,
+      }, undefined, 0, 0, sourcesError.message);
       throw new Error(`Failed to fetch sources: ${sourcesError.message}`);
     }
 
     if (!sources || sources.length === 0) {
+      await logStep(supabase, 'agent_complete', 'info', {
+        message: 'Nenhuma fonte activa encontrada',
+        duration_ms: Date.now() - startTime,
+      });
       return new Response(
         JSON.stringify({ message: 'No active sources found', articles_found: 0, articles_saved: 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -120,9 +176,14 @@ Deno.serve(async (req) => {
 
     let totalFound = 0;
     let totalSaved = 0;
+    let totalDuplicates = 0;
     const errors: string[] = [];
 
     // Get recent articles for duplicate detection
+    await logStep(supabase, 'duplicate_check', 'info', {
+      message: 'A carregar artigos recentes para detecção de duplicados',
+    });
+
     const { data: recentArticles } = await supabase
       .from('articles')
       .select('id, title, original_title, source_url')
@@ -133,9 +194,22 @@ Deno.serve(async (req) => {
     const existingUrls = new Set(recentArticles?.map(a => a.source_url).filter(Boolean) || []);
     const existingTitles = recentArticles?.map(a => a.title || a.original_title).filter(Boolean) || [];
 
+    await logStep(supabase, 'duplicate_check', 'success', {
+      message: 'Cache de duplicados carregado',
+      existing_urls: existingUrls.size,
+      existing_titles: existingTitles.length,
+    });
+
     for (const source of sources as Source[]) {
+      const sourceStartTime = Date.now();
+      
       try {
-        console.log(`Fetching from: ${source.name} (${source.url})`);
+        // Log fetch start
+        await logStep(supabase, 'fetch_start', 'info', {
+          source_name: source.name,
+          source_url: source.url,
+          source_type: source.type,
+        }, source.id);
         
         // Fetch RSS feed
         const response = await fetch(source.url, {
@@ -143,21 +217,41 @@ Deno.serve(async (req) => {
         });
         
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
         const xml = await response.text();
+        const fetchDuration = Date.now() - sourceStartTime;
+
+        // Log fetch complete
+        await logStep(supabase, 'fetch_complete', 'success', {
+          source_name: source.name,
+          response_size_kb: Math.round(xml.length / 1024),
+          duration_ms: fetchDuration,
+        }, source.id);
+
+        // Parse RSS
+        await logStep(supabase, 'parse_rss', 'info', {
+          source_name: source.name,
+          message: 'A analisar XML...',
+        }, source.id);
+
         const items = parseRss(xml);
         
-        console.log(`Found ${items.length} items from ${source.name}`);
+        await logStep(supabase, 'parse_rss', 'success', {
+          source_name: source.name,
+          items_found: items.length,
+        }, source.id, items.length);
+
         totalFound += items.length;
 
         let sourceSaved = 0;
+        let sourceDuplicates = 0;
 
         for (const item of items) {
           // Skip if URL already exists
           if (existingUrls.has(item.link)) {
-            console.log(`Skipping duplicate URL: ${item.link}`);
+            sourceDuplicates++;
             continue;
           }
 
@@ -170,17 +264,19 @@ Deno.serve(async (req) => {
             if (similarity > 0.85) {
               isDuplicate = true;
               duplicateOf = recentArticles?.[i]?.id || null;
-              console.log(`Detected duplicate: "${item.title}" similar to existing article`);
+              sourceDuplicates++;
               break;
             }
           }
+
+          if (isDuplicate) continue;
 
           // Clean up HTML from description/content
           const cleanText = (html: string | undefined) => 
             html?.replace(/<[^>]*>/g, '').replace(/&[^;]+;/g, ' ').trim() || null;
 
           // Insert article
-          const { error: insertError } = await supabase
+          const { data: insertedArticle, error: insertError } = await supabase
             .from('articles')
             .insert({
               source_id: source.id,
@@ -191,9 +287,11 @@ Deno.serve(async (req) => {
               status: 'captured',
               captured_at: new Date().toISOString(),
               category: source.categories?.[0] || null,
-              is_duplicate: isDuplicate,
-              duplicate_of: duplicateOf,
-            });
+              is_duplicate: false,
+              duplicate_of: null,
+            })
+            .select('id')
+            .single();
 
           if (insertError) {
             if (insertError.code !== '23505') { // Ignore unique constraint violations
@@ -203,53 +301,64 @@ Deno.serve(async (req) => {
             sourceSaved++;
             existingUrls.add(item.link);
             existingTitles.push(item.title);
+
+            // Log each article saved
+            await logStep(supabase, 'article_save', 'success', {
+              source_name: source.name,
+              article_id: insertedArticle?.id,
+              article_title: item.title.substring(0, 80),
+            }, source.id, 1, 1);
           }
         }
 
         totalSaved += sourceSaved;
+        totalDuplicates += sourceDuplicates;
 
         // Update source stats
         await supabase
           .from('sources')
           .update({
             last_fetch_at: new Date().toISOString(),
-            articles_captured: (source as any).articles_captured + items.length,
+            articles_captured: source.articles_captured + items.length,
+            duplicates_found: (source as any).duplicates_found + sourceDuplicates,
           })
           .eq('id', source.id);
 
-        // Log execution
-        await supabase
-          .from('agent_logs')
-          .insert({
-            source_id: source.id,
-            action: 'fetch_rss',
-            status: 'success',
-            articles_found: items.length,
-            articles_saved: sourceSaved,
-            executed_at: new Date().toISOString(),
-          });
+        // Log source complete
+        await logStep(supabase, 'source_complete', 'success', {
+          source_name: source.name,
+          items_found: items.length,
+          items_saved: sourceSaved,
+          duplicates_skipped: sourceDuplicates,
+          duration_ms: Date.now() - sourceStartTime,
+        }, source.id, items.length, sourceSaved);
 
       } catch (sourceError) {
         const errorMessage = sourceError instanceof Error ? sourceError.message : 'Unknown error';
         errors.push(`${source.name}: ${errorMessage}`);
-        console.error(`Error processing ${source.name}:`, errorMessage);
 
-        // Log error
-        await supabase
-          .from('agent_logs')
-          .insert({
-            source_id: source.id,
-            action: 'fetch_rss',
-            status: 'error',
-            error_message: errorMessage,
-            articles_found: 0,
-            articles_saved: 0,
-            executed_at: new Date().toISOString(),
-          });
+        await logStep(supabase, 'source_complete', 'error', {
+          source_name: source.name,
+          error: errorMessage,
+          duration_ms: Date.now() - sourceStartTime,
+        }, source.id, 0, 0, errorMessage);
       }
     }
 
-    console.log(`Completed: ${totalFound} found, ${totalSaved} saved`);
+    const totalDuration = Date.now() - startTime;
+
+    // Log agent complete
+    await logStep(supabase, 'agent_complete', 'success', {
+      message: 'Agente concluído',
+      sources_processed: sources.length,
+      total_found: totalFound,
+      total_saved: totalSaved,
+      total_duplicates: totalDuplicates,
+      errors_count: errors.length,
+      duration_ms: totalDuration,
+    }, undefined, totalFound, totalSaved);
+
+    console.log(`Completed: ${totalFound} found, ${totalSaved} saved, ${totalDuplicates} duplicates in ${totalDuration}ms`);
 
     return new Response(
       JSON.stringify({
@@ -257,6 +366,8 @@ Deno.serve(async (req) => {
         sources_processed: sources.length,
         articles_found: totalFound,
         articles_saved: totalSaved,
+        duplicates_skipped: totalDuplicates,
+        duration_ms: totalDuration,
         errors: errors.length > 0 ? errors : undefined,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

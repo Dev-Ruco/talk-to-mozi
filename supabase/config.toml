@@ -2,3 +2,6 @@ project_id = "kwwzfhpamciilgmknsov"
 
 [functions.news-agent]
 verify_jwt = false
+
+[functions.rewrite-article]
+verify_jwt = false
