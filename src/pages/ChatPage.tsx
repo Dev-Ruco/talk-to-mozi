@@ -6,7 +6,7 @@ import { NewsCard } from '@/components/news/NewsCard';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { searchArticles, getLatestArticles } from '@/data/articles';
-import { useSavedArticles } from '@/hooks/useSavedArticles';
+import { useLikedArticles } from '@/hooks/useLikedArticles';
 
 interface ChatMessage {
   id: string;
@@ -22,7 +22,7 @@ export default function ChatPage() {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const { isSaved, toggleSave } = useSavedArticles();
+  const { isLiked, toggleLike } = useLikedArticles();
 
   const latestArticles = useMemo(() => getLatestArticles(4), []);
 
@@ -82,15 +82,11 @@ export default function ChatPage() {
       <div className="mx-auto max-w-3xl py-4">
         {/* Header */}
         <header className="mb-6 text-center">
-          <div className="mb-2 inline-flex items-center gap-2 text-primary">
-            <MessageCircle className="h-5 w-5" />
-            <span className="text-sm font-medium">Pesquisa Inteligente</span>
-          </div>
           <h1 className="font-display text-2xl font-bold md:text-3xl">
             Pergunte algo sobre as notícias
           </h1>
           <p className="mt-1 text-muted-foreground">
-            Conversar = Pesquisar. A IA encontra e explica.
+            Conversar é pesquisar. Experimente qualquer tema.
           </p>
         </header>
 
@@ -148,8 +144,8 @@ export default function ChatPage() {
                     key={article.id}
                     article={article}
                     variant="compact"
-                    isSaved={isSaved(article.id)}
-                    onToggleSave={() => toggleSave(article.id)}
+                    isSaved={isLiked(article.id)}
+                    onToggleSave={() => toggleLike(article.id)}
                   />
                 ))}
               </div>
@@ -189,8 +185,8 @@ export default function ChatPage() {
                               key={article.id}
                               article={article}
                               variant="compact"
-                              isSaved={isSaved(article.id)}
-                              onToggleSave={() => toggleSave(article.id)}
+                              isSaved={isLiked(article.id)}
+                              onToggleSave={() => toggleLike(article.id)}
                             />
                           ))}
                         </div>

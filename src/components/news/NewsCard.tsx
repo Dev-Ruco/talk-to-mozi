@@ -1,5 +1,7 @@
+import { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Clock, MessageCircle, Bookmark } from 'lucide-react';
+import { Clock, MessageCircle, Heart } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Article } from '@/types/news';
 import { getCategoryById, getCategoryColor } from '@/data/categories';
 import { Badge } from '@/components/ui/badge';
@@ -19,8 +21,10 @@ export function NewsCard({ article, isSaved, onToggleSave, variant = 'default' }
   const category = getCategoryById(article.category);
   const timeAgo = getTimeAgo(article.publishedAt);
   const CategoryIcon = category?.icon;
+  const [showBigHeart, setShowBigHeart] = useState(false);
+  const lastTapRef = useRef<number>(0);
 
-  const handleSave = (e: React.MouseEvent) => {
+  const handleLike = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     onToggleSave?.();
@@ -30,6 +34,16 @@ export function NewsCard({ article, isSaved, onToggleSave, variant = 'default' }
     e.preventDefault();
     e.stopPropagation();
     navigate(`/artigo/${article.id}#chat`);
+  };
+
+  // Double tap to like (Instagram style)
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!isSaved) {
+      onToggleSave?.();
+      setShowBigHeart(true);
+      setTimeout(() => setShowBigHeart(false), 600);
+    }
   };
 
   // Sidebar variant - for RightSidebar trends
@@ -97,17 +111,42 @@ export function NewsCard({ article, isSaved, onToggleSave, variant = 'default' }
 
   // Default - Social media style card with large image
   return (
-    <article className="group overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-md">
-      {/* Large Image */}
-      <Link to={`/artigo/${article.id}`}>
-        <AspectRatio ratio={16 / 9}>
-          <img
-            src={article.imageUrl || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&h=450&fit=crop'}
-            alt={article.title}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-          />
-        </AspectRatio>
-      </Link>
+    <motion.article 
+      className="group overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-md"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      {/* Large Image with double-click to like */}
+      <div 
+        className="relative cursor-pointer"
+        onDoubleClick={handleDoubleClick}
+      >
+        <Link to={`/artigo/${article.id}`}>
+          <AspectRatio ratio={16 / 9}>
+            <img
+              src={article.imageUrl || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&h=450&fit=crop'}
+              alt={article.title}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+            />
+          </AspectRatio>
+        </Link>
+        
+        {/* Big heart animation on double-click */}
+        <AnimatePresence>
+          {showBigHeart && (
+            <motion.div
+              className="absolute inset-0 flex items-center justify-center pointer-events-none"
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 1.2, opacity: 0 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+            >
+              <Heart className="h-24 w-24 fill-red-500 text-red-500 drop-shadow-lg" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
       
       {/* Content */}
       <div className="p-4">
@@ -140,38 +179,46 @@ export function NewsCard({ article, isSaved, onToggleSave, variant = 'default' }
         
         {/* Actions */}
         <div className="mt-4 flex items-center gap-2">
-          <Button
-            variant="default"
-            size="sm"
-            className="gap-1.5"
-            onClick={handleChat}
-          >
-            <MessageCircle className="h-4 w-4" />
-            Conversar
-          </Button>
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <Button
+              variant="default"
+              size="sm"
+              className="gap-1.5"
+              onClick={handleChat}
+            >
+              <MessageCircle className="h-4 w-4" />
+              Conversar
+            </Button>
+          </motion.div>
           
-          <Button
-            variant="outline"
-            size="sm"
-            asChild
-          >
-            <Link to={`/artigo/${article.id}`}>
-              Abrir
-            </Link>
-          </Button>
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+            >
+              <Link to={`/artigo/${article.id}`}>
+                Abrir
+              </Link>
+            </Button>
+          </motion.div>
           
-          <Button
-            variant="ghost"
-            size="icon"
-            className="ml-auto h-8 w-8"
-            onClick={handleSave}
+          <motion.button
+            className="ml-auto flex h-8 w-8 items-center justify-center rounded-md"
+            onClick={handleLike}
+            whileTap={{ scale: 0.9 }}
+            animate={isSaved ? { scale: [1, 1.15, 1] } : {}}
+            transition={{ duration: 0.2 }}
           >
-            <Bookmark className={cn("h-4 w-4", isSaved && "fill-primary text-primary")} />
-            <span className="sr-only">{isSaved ? 'Remover' : 'Guardar'}</span>
-          </Button>
+            <Heart className={cn(
+              "h-5 w-5 transition-colors",
+              isSaved ? "fill-red-500 text-red-500" : "text-muted-foreground hover:text-red-500"
+            )} />
+            <span className="sr-only">{isSaved ? 'Remover' : 'Amei'}</span>
+          </motion.button>
         </div>
       </div>
-    </article>
+    </motion.article>
   );
 }
 

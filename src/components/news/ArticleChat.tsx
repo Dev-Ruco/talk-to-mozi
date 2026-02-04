@@ -102,7 +102,7 @@ export function ArticleChat({ article }: ArticleChatProps) {
             <Sparkles className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h3 className="font-display font-semibold">Explore esta notícia com IA</h3>
+            <h3 className="font-display font-semibold">Explore esta notícia</h3>
             <p className="text-sm text-muted-foreground">Faça perguntas sobre o conteúdo</p>
           </div>
           {messages.length > 0 && (
