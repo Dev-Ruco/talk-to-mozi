@@ -8,9 +8,10 @@ import { Loader2 } from 'lucide-react';
 interface AdminLayoutProps {
   children: ReactNode;
   title?: string;
+  hideHeader?: boolean;
 }
 
-export function AdminLayout({ children, title }: AdminLayoutProps) {
+export function AdminLayout({ children, title, hideHeader = false }: AdminLayoutProps) {
   const { isLoading, isAuthenticated } = useAdminAuth();
   const navigate = useNavigate();
 
@@ -39,8 +40,8 @@ export function AdminLayout({ children, title }: AdminLayoutProps) {
     <div className="min-h-screen bg-background">
       <AdminSidebar />
       <div className="ml-56">
-        <AdminHeader title={title} />
-        <main className="p-6">{children}</main>
+        {!hideHeader && <AdminHeader title={title} />}
+        <main className={hideHeader ? "" : "p-6"}>{children}</main>
       </div>
     </div>
   );
