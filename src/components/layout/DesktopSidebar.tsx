@@ -50,9 +50,12 @@ export function DesktopSidebar() {
         </div>
 
         <div className="mt-auto border-t pt-4">
-          <p className="text-[10px] text-muted-foreground">
+          <Link 
+            to="/admin/login" 
+            className="text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+          >
             © 2024 B NEWS
-          </p>
+          </Link>
         </div>
       </div>
     </aside>
