@@ -1,309 +1,407 @@
 
+# Dashboard CRM Editorial - B NEWS
 
-# Remover Etiquetas de IA e Substituir "Guardar" por "Amei"
-
-Vou remover todas as referências a "Alimentado por IA" e substituir a funcionalidade de guardar notícias pelo estilo Instagram "Amei" (coração).
-
----
-
-## Alterações a Fazer
-
-### 1. Remover Etiquetas de IA
-
-| Ficheiro | Alteração |
-|----------|-----------|
-| `src/components/news/HeroChat.tsx` | Remover badge "Alimentado por IA" (linhas 45-48) |
-| `src/components/news/ArticleChat.tsx` | Mudar "Explore esta notícia com IA" para "Explore esta notícia" |
-| `src/pages/ChatPage.tsx` | Remover texto "A IA encontra e explica" |
-
-### 2. Substituir "Guardar" por "Amei" (Estilo Instagram)
-
-| Ficheiro | Alteração |
-|----------|-----------|
-| `src/hooks/useSavedArticles.ts` | Renomear para `useLikedArticles.ts` com funções: `likeArticle`, `unlikeArticle`, `toggleLike`, `isLiked` |
-| `src/components/news/NewsCard.tsx` | Mudar ícone `Bookmark` para `Heart`, texto "Guardar" para "Amei" |
-| `src/pages/ArticlePage.tsx` | Mudar botão de Bookmark para Heart com texto "Amei/Curti" |
-| `src/components/layout/Header.tsx` | Mudar ícone Bookmark para Heart no header |
-| `src/components/layout/MobileNav.tsx` | Mudar "Guardados" para "Amei" com ícone Heart |
-| `src/pages/SavedPage.tsx` | Renomear para página "Amei" com textos actualizados |
-| `src/pages/ProfilePage.tsx` | Actualizar referência para "artigos curtidos" |
-| `src/App.tsx` | Manter rota `/guardados` mas actualizar se necessário |
+Implementacao completa de um backoffice profissional para gestao editorial, com pipeline de noticias, agente de IA, gestao de fontes e publicidade.
 
 ---
 
-## Detalhes Técnicos
+## Fase 1: Infraestrutura Base
 
-### Novo Hook: `useLikedArticles.ts`
-```typescript
-// Renomear funções
-saveArticle → likeArticle
-unsaveArticle → unlikeArticle  
-toggleSave → toggleLike
-isSaved → isLiked
-savedIds → likedIds
-```
+### 1.1 Integracao Supabase (Lovable Cloud)
 
-### Ícone Heart (Instagram Style)
-- **Vazio**: `<Heart className="h-4 w-4" />`
-- **Cheio (liked)**: `<Heart className="h-4 w-4 fill-red-500 text-red-500" />`
+Activar o Supabase via Lovable Cloud para ter base de dados em tempo real.
 
-A cor vermelha segue o padrão do Instagram para o coração.
+**Tabelas a criar:**
 
-### Textos Actualizados
+| Tabela | Descricao |
+|--------|-----------|
+| `articles` | Noticias do sistema (captadas + publicadas) |
+| `sources` | Fontes de noticias (RSS, sites) |
+| `sponsored_campaigns` | Campanhas publicitarias |
+| `sponsored_ads` | Anuncios individuais |
+| `user_roles` | Roles da equipa (admin, editor, revisor) |
+| `agent_logs` | Logs do agente de IA |
 
-| Local | Antes | Depois |
-|-------|-------|--------|
-| NewsCard botão | "Guardar" | (sem texto, só ícone Heart) |
-| ArticlePage botão | "Guardado/Guardar" | "Amei/Curtir" |
-| MobileNav | "Guardados" | "Amei" |
-| SavedPage título | "Guardados" | "Amei" |
-| SavedPage descrição | "notícias que guardou" | "notícias que curtiu" |
-| Estado vazio | "Nenhuma notícia guardada" | "Nenhuma notícia curtida" |
+### 1.2 Autenticacao do Backoffice
+
+- Supabase Auth para login de editores
+- Roles separados em tabela `user_roles` (seguranca)
+- RLS policies para proteger dados
 
 ---
 
-## Ficheiros a Modificar
+## Fase 2: Estrutura de Ficheiros
 
-1. `src/hooks/useSavedArticles.ts` → Renomear hook e funções
-2. `src/components/news/HeroChat.tsx` → Remover badge IA
-3. `src/components/news/ArticleChat.tsx` → Remover referência IA
-4. `src/pages/ChatPage.tsx` → Remover texto IA
-5. `src/components/news/NewsCard.tsx` → Heart + vermelho
-6. `src/pages/ArticlePage.tsx` → Heart + texto Amei
-7. `src/components/layout/Header.tsx` → Heart no header
-8. `src/components/layout/MobileNav.tsx` → Heart + "Amei"
-9. `src/pages/SavedPage.tsx` → Textos "Amei" e Heart
-10. `src/pages/ProfilePage.tsx` → Referência actualizada
-
----
-
-## Resultado Visual
-
-### Card de Notícia (antes vs depois)
 ```text
-Antes: [Conversar] [Abrir] [🔖]
-Depois: [Conversar] [Abrir] [❤️]
+src/
+  admin/
+    components/
+      layout/
+        AdminLayout.tsx        # Layout principal do CRM
+        AdminSidebar.tsx       # Menu lateral
+        AdminHeader.tsx        # Barra superior
+      pipeline/
+        ArticleCard.tsx        # Card de artigo na lista
+        ArticleList.tsx        # Vista lista
+        ArticleKanban.tsx      # Vista Kanban (opcional)
+        ArticleFilters.tsx     # Filtros (fonte, categoria, etc.)
+      editor/
+        ArticleEditor.tsx      # Editor 3 paineis
+        SourcePanel.tsx        # Painel esquerdo (fonte original)
+        ContentPanel.tsx       # Painel central (edicao)
+        PublishPanel.tsx       # Painel direito (publicacao)
+        AIToolbar.tsx          # Botoes IA (reformular, encurtar)
+      sources/
+        SourcesList.tsx        # Lista de fontes
+        SourceForm.tsx         # Formulario de fonte
+      ads/
+        CampaignList.tsx       # Campanhas publicitarias
+        AdForm.tsx             # Formulario de anuncio
+      agent/
+        AgentStatus.tsx        # Estado ON/OFF
+        AgentLogs.tsx          # Logs de execucao
+      team/
+        TeamList.tsx           # Gestao de equipa
+        RoleSelector.tsx       # Selector de role
+    pages/
+      AdminDashboard.tsx       # Pagina inicial
+      InboxPage.tsx            # Noticias captadas
+      PendingPage.tsx          # Revisao humana
+      EditingPage.tsx          # Em edicao
+      ScheduledPage.tsx        # Agendadas
+      PublishedPage.tsx        # Publicadas
+      SourcesPage.tsx          # Gestao de fontes
+      AdsPage.tsx              # Publicidade
+      AgentPage.tsx            # Estado do agente
+      TeamPage.tsx             # Equipa
+      SettingsPage.tsx         # Definicoes
+    hooks/
+      useArticles.ts           # CRUD artigos
+      useSources.ts            # CRUD fontes
+      useAgent.ts              # Estado agente
+      useAuth.ts               # Autenticacao admin
+    types/
+      admin.ts                 # Tipos do backoffice
 ```
 
-### Navegação Mobile
+---
+
+## Fase 3: Schema da Base de Dados
+
+### 3.1 Tabela `articles` (expandida)
+
+```sql
+CREATE TYPE article_status AS ENUM (
+  'captured',      -- Captada
+  'rewritten',     -- Reescrita pela IA
+  'pending',       -- Pendente de revisao
+  'approved',      -- Aprovada
+  'needs_image',   -- Foto em falta
+  'scheduled',     -- Agendada
+  'published',     -- Publicada
+  'rejected'       -- Rejeitada
+);
+
+CREATE TABLE articles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  -- Dados originais (fonte)
+  original_title TEXT,
+  original_content TEXT,
+  source_id UUID REFERENCES sources(id),
+  source_url TEXT,
+  captured_at TIMESTAMPTZ DEFAULT NOW(),
+  
+  -- Dados B NEWS (editados)
+  title TEXT,
+  lead TEXT,
+  content TEXT,
+  quick_facts TEXT[],
+  tags TEXT[],
+  category TEXT,
+  location TEXT,
+  
+  -- Publicacao
+  image_url TEXT,
+  image_caption TEXT,
+  highlight_type TEXT DEFAULT 'normal', -- 'hero', 'trending', 'normal'
+  seo_slug TEXT,
+  seo_title TEXT,
+  
+  -- Estado
+  status article_status DEFAULT 'captured',
+  confidence_score DECIMAL(3,2), -- 0.00 a 1.00
+  is_duplicate BOOLEAN DEFAULT FALSE,
+  duplicate_of UUID REFERENCES articles(id),
+  
+  -- Meta
+  reading_time INTEGER,
+  author TEXT,
+  editor_id UUID REFERENCES auth.users(id),
+  scheduled_at TIMESTAMPTZ,
+  published_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### 3.2 Tabela `sources`
+
+```sql
+CREATE TYPE source_type AS ENUM ('rss', 'website', 'api');
+CREATE TYPE credibility_level AS ENUM ('high', 'medium', 'low');
+
+CREATE TABLE sources (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  url TEXT NOT NULL,
+  type source_type DEFAULT 'rss',
+  credibility credibility_level DEFAULT 'medium',
+  categories TEXT[], -- Categorias que alimenta
+  is_active BOOLEAN DEFAULT TRUE,
+  last_fetch_at TIMESTAMPTZ,
+  articles_captured INTEGER DEFAULT 0,
+  duplicates_found INTEGER DEFAULT 0,
+  fetch_interval_minutes INTEGER DEFAULT 5,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### 3.3 Tabela `user_roles`
+
+```sql
+CREATE TYPE app_role AS ENUM ('admin', 'editor_chefe', 'editor', 'revisor');
+
+CREATE TABLE user_roles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  role app_role NOT NULL,
+  UNIQUE (user_id, role)
+);
+```
+
+### 3.4 Tabela `agent_logs`
+
+```sql
+CREATE TABLE agent_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  source_id UUID REFERENCES sources(id),
+  action TEXT, -- 'fetch', 'rewrite', 'duplicate_check'
+  status TEXT, -- 'success', 'error'
+  articles_found INTEGER DEFAULT 0,
+  articles_saved INTEGER DEFAULT 0,
+  error_message TEXT,
+  executed_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### 3.5 Tabela `sponsored_campaigns`
+
+```sql
+CREATE TABLE sponsored_campaigns (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  advertiser TEXT NOT NULL,
+  start_date DATE,
+  end_date DATE,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE sponsored_ads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  campaign_id UUID REFERENCES sponsored_campaigns(id),
+  title TEXT NOT NULL,
+  description TEXT,
+  image_url TEXT,
+  link TEXT,
+  placement TEXT DEFAULT 'feed', -- 'feed', 'hero', 'sidebar'
+  frequency INTEGER DEFAULT 8, -- A cada N artigos
+  impressions INTEGER DEFAULT 0,
+  clicks INTEGER DEFAULT 0,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+---
+
+## Fase 4: Rotas do Backoffice
+
+**Adicionar ao `App.tsx`:**
+
 ```text
-Antes: 🏠 📂 💬 🔖 👤
-Depois: 🏠 📂 💬 ❤️ 👤
+/admin               → AdminDashboard
+/admin/inbox         → InboxPage (Captadas)
+/admin/pending       → PendingPage (Revisao)
+/admin/editing       → EditingPage (Em edicao)
+/admin/scheduled     → ScheduledPage (Agendadas)
+/admin/published     → PublishedPage (Publicadas)
+/admin/article/:id   → ArticleEditor (Editor 3 paineis)
+/admin/sources       → SourcesPage
+/admin/ads           → AdsPage
+/admin/agent         → AgentPage
+/admin/team          → TeamPage
+/admin/settings      → SettingsPage
 ```
 
-O coração ficará vermelho quando curtido, similar ao Instagram.
-
-
-Plano de Animações e Micro-Interacções (UX Interactivo)
-
-Objectivo: tornar o B NEWS mais intuitivo, fluido e “viciante” como uma rede social, sem poluir a UI. As animações devem ser rápidas, suaves e discretas.
-
-Regras gerais
-
-Duração: 120–220ms (rápidas)
-
-Easing: suave (ease-out)
-
-Nunca usar animações longas, piscantes ou agressivas
-
-Preferir “motion” para feedback de acção (não para decoração)
-
-A) Animações ao clicar (Click / Tap)
-1. Botões (Conversar / Abrir / Saber mais)
-
-Estado hover (desktop): leve aumento (scale 1.02) + sombra suave
-
-Estado active (click): compressão curta (scale 0.98)
-
-Estado loading: spinner pequeno no botão (sem bloquear a página)
-
-Ficheiros
-
-NewsCard.tsx
-
-SponsoredCard.tsx
-
-HeroChat.tsx
-
-2. Coração “Amei” (Instagram style)
-
-Interacção
-
-Ao clicar em ❤️:
-
-animação “pop” (scale 0.9 → 1.15 → 1.0)
-
-se liked: preencher + ficar vermelho
-
-se unliked: retirar fill + voltar ao normal
-
-Duplo clique na imagem do card (desktop/mobile):
-
-faz “like” automaticamente
-
-aparece coração grande no centro da imagem por 300ms e desaparece
-
-Ficheiros
-
-NewsCard.tsx
-
-ArticlePage.tsx
-
-Hook useLikedArticles.ts
-
-3. Chips de categoria
-
-Ao seleccionar:
-
-transição suave de fundo e texto
-
-pequeno underline animado (ou pill glow subtil)
-
-Ao clicar:
-
-scroll suave até ao feed (se for na home)
-
-Ficheiros
-
-CategoryChips.tsx
-
-B) Animações ao rolar (Scroll)
-4. Entrada dos cards no feed (scroll reveal)
-
-Quando um card entra no viewport:
-
-fade-in + slight translateY (8px → 0)
-
-apenas 1 vez por card
-
-Ficheiros
-
-NewsFeed.tsx
-
-NewsCard.tsx
-
-(usar IntersectionObserver)
-
-5. Sidebar “Tendências” (desktop)
-
-Mantém-se oculta no topo
-
-Surge com transição (fade + slide) após passar o Hero
-
-Não pode “saltar” nem aparecer abrupto
-
-Ficheiros
-
-RightSidebar.tsx
-
-Layout.tsx
-
-6. Header (desktop) e Top bar (mobile)
-
-Ao rolar para baixo:
-
-header encolhe ligeiramente (altura menor)
-Ao rolar para cima:
-
-header reaparece
-
-Objectivo: mais espaço para conteúdo.
-
-Ficheiros
-
-Header.tsx
-
-C) Animações de navegação (Page transitions)
-7. Abrir notícia
-
-Ao clicar num card:
-
-transição suave de página (fade rápido)
-
-manter scroll position ao voltar (back)
-
-Ficheiros
-
-ArticlePage.tsx
-
-router / layout
-
-8. Abrir /chat (a partir do Hero)
-
-Ao submeter pergunta:
-
-animação curta de “envio” (ícone avião)
-
-transição para /chat com input já preenchido
-
-Ficheiros
-
-HeroChat.tsx
-
-ChatPage.tsx
-
-D) Animações no Chat (para parecer vivo)
-9. Resposta do chat (typing + skeleton)
-
-Mostrar “skeleton” (blocos cinza) durante carregamento
-
-Mensagem surge com fade + 6px translate
-
-Cards “Notícias relacionadas” entram em cascata (stagger leve)
-
-Ficheiros
-
-ChatPage.tsx
-
-ArticleChat.tsx
-
-E) Feedback de estados (muito importante)
-10. Guardar removido → “Amei”
-
-Toast discreto no canto:
-
-“Adicionado a Amei”
-
-“Removido de Amei”
-Duração 1.5s.
-
-Ficheiros
-
-useLikedArticles.ts
-
-NewsCard.tsx
-
-ArticlePage.tsx
-
-11. Infinite scroll
-
-Quando carrega mais notícias:
-
-spinner discreto no fim do feed
-
-placeholder cards (skeleton) para parecer contínuo
-
-Ficheiros
-
-NewsFeed.tsx
-
-F) Biblioteca / Implementação (sugestão)
-
-Preferência:
-
-Framer Motion para micro-interacções e page transitions
-
-IntersectionObserver para scroll reveal
-
-Evitar libs pesadas extra
-
-Resultado esperado
-
-Interface com “vida”
-
-Acções claras e satisfatórias (coração, botões, abrir notícia)
-
-Sensação de produto premium, moderno e intuitivo
-
-Sem ruído visual nem exageros
-
+---
+
+## Fase 5: Componentes Principais
+
+### 5.1 AdminLayout
+
+Layout base com:
+- Sidebar fixa a esquerda (220px)
+- Header com pesquisa global + "Nova noticia"
+- Area de conteudo principal
+
+### 5.2 Pipeline (Lista)
+
+Vista padrao com tabela:
+- Colunas: Titulo, Fonte, Categoria, Score, Estado, Hora, Acoes
+- Filtros: Fonte, Categoria, Estado, Periodo, Duplicados
+- Paginacao
+- Accoes rapidas: Abrir, Aprovar, Rejeitar, Agendar
+
+### 5.3 Editor 3 Paineis
+
+| Painel Esquerdo (25%) | Painel Central (50%) | Painel Direito (25%) |
+|----------------------|---------------------|---------------------|
+| Titulo original | Titulo B NEWS (editavel) | Upload imagem |
+| Texto original | Lead (2 linhas) | Sugestoes de imagem |
+| Link fonte | Corpo (rich text) | Legenda |
+| Metadados | Factos rapidos | Destaque (Hero/Tendencias) |
+| | Tags | SEO (slug, titulo) |
+| | Categoria | Estado: Aprovar/Rejeitar |
+| | Localizacao | Agendamento |
+| | **Toolbar IA:** | Publicar agora |
+| | Reformular / Encurtar | |
+| | Tom jornalistico | |
+
+### 5.4 AgentStatus
+
+Card com:
+- Toggle ON/OFF
+- Frequencia (dropdown: 1, 5, 15 min)
+- Ultima execucao
+- Erros recentes
+- Botao "Executar agora"
+
+---
+
+## Fase 6: Funcionalidades IA
+
+### 6.1 Integracao AI Gateway (Lovable)
+
+Usar `ai.gateway.lovable.dev` para:
+- Reformular texto
+- Encurtar
+- Tornar mais jornalistico
+- Sugerir titulo alternativo
+- Gerar factos rapidos
+
+### 6.2 Agente de Recolha (Edge Function)
+
+Edge function que:
+1. Le fontes activas
+2. Faz fetch do RSS/site
+3. Detecta duplicados
+4. Reescreve com IA
+5. Guarda em `articles` com status `rewritten`
+6. Regista em `agent_logs`
+
+---
+
+## Fase 7: Permissoes por Role
+
+| Accao | Admin | Editor-Chefe | Editor | Revisor |
+|-------|-------|--------------|--------|---------|
+| Publicar | Sim | Sim | Nao | Nao |
+| Aprovar | Sim | Sim | Nao | Sim |
+| Editar artigo | Sim | Sim | Sim | Nao |
+| Gerir fontes | Sim | Sim | Nao | Nao |
+| Gerir publicidade | Sim | Nao | Nao | Nao |
+| Gerir equipa | Sim | Nao | Nao | Nao |
+| Ver logs agente | Sim | Sim | Nao | Nao |
+
+---
+
+## Fase 8: Ordem de Implementacao
+
+### Sprint 1: Fundacao
+1. Activar Supabase via Lovable Cloud
+2. Criar schema (migracoes SQL)
+3. Configurar autenticacao
+4. AdminLayout + AdminSidebar + AdminHeader
+5. Pagina de login admin
+
+### Sprint 2: Pipeline Editorial
+6. ArticleList com filtros
+7. Paginas: Inbox, Pending, Published
+8. Accoes rapidas (aprovar, rejeitar)
+
+### Sprint 3: Editor
+9. ArticleEditor 3 paineis
+10. ContentPanel com rich text
+11. PublishPanel com upload imagem
+12. Integracao AI toolbar
+
+### Sprint 4: Fontes e Agente
+13. SourcesList + SourceForm
+14. AgentPage + AgentStatus
+15. Edge function do agente (recolha)
+
+### Sprint 5: Publicidade e Equipa
+16. CampaignList + AdForm
+17. TeamList + RoleSelector
+18. RLS policies completas
+
+---
+
+## Detalhes Tecnicos
+
+### Bibliotecas a Adicionar
+
+| Pacote | Uso |
+|--------|-----|
+| `@supabase/supabase-js` | Cliente Supabase |
+| `@supabase/ssr` | SSR helpers |
+| `@tiptap/react` | Editor rich text |
+| `@dnd-kit/core` | Drag & drop (Kanban) |
+| `react-dropzone` | Upload de imagens |
+
+### RLS Policies
+
+Todas as tabelas do CRM terao RLS activado. O acesso sera validado pela funcao `has_role()`:
+
+```sql
+CREATE OR REPLACE FUNCTION public.has_role(_user_id UUID, _role app_role)
+RETURNS BOOLEAN
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.user_roles
+    WHERE user_id = _user_id AND role = _role
+  )
+$$;
+```
+
+### Storage Bucket
+
+Criar bucket `article-images` para upload de fotos:
+- Publico para leitura
+- Escrita apenas para utilizadores autenticados com role editor+
+
+---
+
+## Resultado Esperado
+
+- Backoffice profissional e produtivo
+- Fluxo claro: Captar → Reescrever → Rever → Foto → Publicar
+- Editor 3 paineis para comparar fonte vs versao B NEWS
+- Agente autonomo a captar noticias
+- Equipa com roles bem definidos
+- Publicidade gerida no mesmo sistema
