@@ -290,9 +290,32 @@ export default function ChatPage() {
                           </div>
                         </div>
 
-                        {/* Related articles - only show for the last assistant message */}
+                        {/* Input inline - RIGHT AFTER the response */}
+                        {msgIndex === messages.length - 1 && !isLoading && (
+                          <form onSubmit={handleFormSubmit} className="ml-11">
+                            <div className="flex gap-2">
+                              <Input
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                placeholder="Continuar a conversa..."
+                                className="h-12 flex-1 text-base"
+                                disabled={isLoading}
+                              />
+                              <Button
+                                type="submit"
+                                size="icon"
+                                className="h-12 w-12 shrink-0"
+                                disabled={isLoading || !input.trim()}
+                              >
+                                <Send className="h-5 w-5" />
+                              </Button>
+                            </div>
+                          </form>
+                        )}
+
+                        {/* Related articles - AFTER the input */}
                         {msgIndex === messages.length - 1 && relatedArticles.length > 0 && (
-                          <div className="ml-11 space-y-3">
+                          <div className="ml-11 mt-2 space-y-3">
                             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                               Notícias relacionadas
                             </p>
@@ -305,11 +328,6 @@ export default function ChatPage() {
                                 />
                               ))}
                             </div>
-                            
-                            {/* Continue exploring */}
-                            <p className="text-xs text-muted-foreground">
-                              Quer explorar mais sobre este tema? Faça outra pergunta abaixo.
-                            </p>
                           </div>
                         )}
                       </div>
@@ -347,26 +365,28 @@ export default function ChatPage() {
           )}
         </div>
 
-        {/* Chat input - Fixed at bottom */}
-        <form onSubmit={handleFormSubmit} className="flex-shrink-0 sticky bottom-0 bg-background pt-2 pb-4">
-          <div className="flex gap-2">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Escreva qualquer tema: inflação, chuvas, política, dólar…"
-              className="h-14 flex-1 text-base"
-              disabled={isLoading}
-            />
-            <Button
-              type="submit"
-              size="icon"
-              className="h-14 w-14 shrink-0"
-              disabled={isLoading || !input.trim()}
-            >
-              <Send className="h-5 w-5" />
-            </Button>
-          </div>
-        </form>
+        {/* Chat input - Only show at bottom when no messages yet */}
+        {messages.length === 0 && (
+          <form onSubmit={handleFormSubmit} className="flex-shrink-0 sticky bottom-0 bg-background pt-2 pb-4">
+            <div className="flex gap-2">
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Escreva qualquer tema: inflação, chuvas, política, dólar…"
+                className="h-14 flex-1 text-base"
+                disabled={isLoading}
+              />
+              <Button
+                type="submit"
+                size="icon"
+                className="h-14 w-14 shrink-0"
+                disabled={isLoading || !input.trim()}
+              >
+                <Send className="h-5 w-5" />
+              </Button>
+            </div>
+          </form>
+        )}
       </div>
     </Layout>
   );
