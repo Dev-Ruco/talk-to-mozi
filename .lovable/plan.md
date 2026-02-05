@@ -1,91 +1,133 @@
 
-# Redesenho Visual do Layout - Feed Estilo Facebook
+# Expandir Carousel e Melhorar Proporções dos Cards
 
-## Resumo das Alterações
+## Problema Identificado
 
-Implementar 4 alterações visuais principais para criar um layout mais amplo e profissional:
+Olhando para o screenshot:
+- O carousel está limitado a `max-w-2xl` (672px) no container do Hero
+- Os cards têm altura fixa de `h-48` (192px) com proporção quase quadrada
+- Há muito espaço vazio à direita que não está a ser aproveitado
+- A sidebar esquerda tem `w-56` (224px)
 
-1. **Expandir área de conteúdo** - Remover sidebar direita para dar mais espaço
-2. **Carousel com 3 cards** - Mostrar 3 notícias no Hero em vez de 2
-3. **Fundo cinza claro** - Área de trabalho com cinza suave, cards mantêm branco
-4. **Preparar espaço para publicidade futura** - Remover secção "Tendências"
+## Cálculo do Espaço Disponível
+
+```text
+Container max: 1400px (definido no tailwind)
+Sidebar: 224px
+Gap: 24px
+────────────────
+Espaço para conteúdo: ~1152px
+
+Actualmente usado: 672px (max-w-2xl)
+Espaço desperdiçado: ~480px
+```
+
+## Solução Proposta
+
+### 1. Expandir o Container do Hero
+
+**Antes:** `max-w-2xl` (672px)
+**Depois:** `max-w-5xl` (1024px) ou `max-w-4xl` (896px)
+
+Isto permite que o carousel ocupe mais espaço horizontal, com cards mais rectangulares.
+
+### 2. Ajustar Proporção dos Cards
+
+**Antes:** `h-48` (192px) - cards mais quadrados
+**Depois:** `h-44` ou `h-40` (176px/160px) - cards mais rectangulares/panorâmicos
+
+Com 3 cards mais largos e ligeiramente menos altos, obtemos um visual mais cinematográfico.
+
+### 3. Manter Centralização do Título e Input
+
+O título e o campo de pesquisa mantêm-se com `max-w-2xl` para boa legibilidade, apenas o carousel expande:
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│                                                          │
+│        O que aconteceu hoje em Moçambique?              │ ← max-w-2xl (centrado)
+│        [  Campo de pesquisa               ]             │ ← max-w-2xl (centrado)
+│                                                          │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐                 │
+│  │  Card 1  │ │  Card 2  │ │  Card 3  │                 │ ← max-w-5xl (expandido)
+│  │ (16:10)  │ │ (16:10)  │ │ (16:10)  │                 │
+│  └──────────┘ └──────────┘ └──────────┘                 │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
 
 ---
 
 ## Alterações Técnicas
 
-### 1. Layout Principal (`src/components/layout/Layout.tsx`)
+### Ficheiro: `src/components/news/HeroChat.tsx`
 
-**Antes:**
-```
-┌──────────────────────────────────────────────────────────┐
-│ Header                                                    │
-├──────────┬────────────────────────────────┬──────────────┤
-│ Sidebar  │         Conteúdo               │  Tendências  │
-│ Esquerda │       (max 600px)              │   (w-72)     │
-│ (w-56)   │                                │              │
-└──────────┴────────────────────────────────┴──────────────┘
-```
-
-**Depois:**
-```
-┌──────────────────────────────────────────────────────────┐
-│ Header                                                    │
-├──────────┬───────────────────────────────────────────────┤
-│ Sidebar  │              Conteúdo Expandido               │
-│ Esquerda │                                               │
-│ (w-56)   │   (mais espaço para cards e publicidade)      │
-└──────────┴───────────────────────────────────────────────┘
-```
-
-**Alterações:**
-- Remover `<RightSidebar />` e todo o código associado (estado, scroll listener)
-- Simplificar estrutura do container
-- Manter apenas sidebar esquerda de categorias
-
----
-
-### 2. Carousel do Hero (`src/components/news/HeroChat.tsx`)
-
-**Antes:** `basis-full md:basis-1/2 lg:basis-1/2` (2 cards visíveis)
-
-**Depois:** `basis-full md:basis-1/2 lg:basis-1/3` (3 cards visíveis em desktop)
-
-**Alterações na linha 158:**
+**Linha 54-55 - Container principal:**
 ```tsx
 // Antes:
-<CarouselItem key={index} className="basis-full md:basis-1/2 lg:basis-1/2">
+<motion.div className="w-full max-w-2xl space-y-8 text-center">
 
 // Depois:
-<CarouselItem key={index} className="basis-full md:basis-1/2 lg:basis-1/3">
+<motion.div className="w-full max-w-5xl space-y-8 text-center">
 ```
 
-Também ajustar o skeleton de loading para reflectir 3 cards.
+**Linha 62-70 - Título (manter centrado):**
+```tsx
+// Adicionar wrapper com max-w-2xl para título:
+<div className="mx-auto max-w-2xl space-y-3">
+  <motion.h1>...</motion.h1>
+</div>
+```
+
+**Linha 74-132 - Form (manter centrado):**
+```tsx
+// Adicionar wrapper com max-w-2xl para form:
+<motion.form className="mx-auto max-w-2xl space-y-4">
+```
+
+**Linha 163 - Altura dos cards:**
+```tsx
+// Antes:
+className="group relative block h-48 w-full overflow-hidden rounded-xl"
+
+// Depois:
+className="group relative block h-40 w-full overflow-hidden rounded-xl"
+```
+
+**Linha 143-147 - Skeletons:**
+```tsx
+// Ajustar altura dos skeletons para h-40
+<Skeleton className="h-40 w-full shrink-0 rounded-xl md:w-1/2 lg:w-1/3" />
+```
+
+**Linha 189 - Sponsored card:**
+```tsx
+// Antes:
+<div className="h-48">
+
+// Depois:
+<div className="h-40">
+```
 
 ---
 
-### 3. Cores de Fundo (`src/index.css`)
+## Resultado Visual Esperado
 
-**Nova variável CSS:**
-```css
-:root {
-  --background: 220 14% 96%;    /* Cinza azulado muito claro (estilo Facebook) */
-  --card: 0 0% 100%;            /* Mantém branco puro */
-}
+### Antes
+```text
+Sidebar │        ┌────────────────────┐      │ Espaço vazio
+   │    │        │  max-w-2xl (672px) │      │
+   │    │        │  [■■] [■■] [■■]    │      │  ← Cards quadrados
+   │    │        └────────────────────┘      │
 ```
 
-**Valores HSL:**
-- Background actual: `0 0% 100%` (branco puro)
-- Background novo: `220 14% 96%` (cinza muito suave com tom frio)
-- Card: `0 0% 100%` (mantém branco)
-
----
-
-### 4. Feed de Notícias (`src/components/news/NewsFeed.tsx`)
-
-**Antes:** `max-w-[600px]`
-
-**Depois:** `max-w-[700px]` ou `max-w-2xl` para aproveitar o espaço extra.
+### Depois
+```text
+Sidebar │  ┌─────────────────────────────────────────┐  │
+   │    │  │         max-w-5xl (1024px)              │  │
+   │    │  │   [━━━━━━] [━━━━━━] [━━━━━━]            │  │  ← Cards rectangulares
+   │    │  └─────────────────────────────────────────┘  │
+```
 
 ---
 
@@ -93,59 +135,17 @@ Também ajustar o skeleton de loading para reflectir 3 cards.
 
 | Ficheiro | Alteração |
 |----------|-----------|
-| `src/components/layout/Layout.tsx` | Remover RightSidebar, simplificar layout |
-| `src/components/news/HeroChat.tsx` | Carousel com `lg:basis-1/3` para 3 cards |
-| `src/index.css` | Alterar `--background` para cinza claro |
-| `src/components/news/NewsFeed.tsx` | Aumentar `max-w` para aproveitar espaço |
+| `src/components/news/HeroChat.tsx` | Expandir container, ajustar alturas |
 
 ---
 
-## Comparação Visual
+## Proporções Finais
 
-### Antes
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ Fundo: Branco                                                    │
-│ ┌────────┐ ┌──────────────────────┐ ┌─────────────┐             │
-│ │Sidebar │ │   Conteúdo           │ │ Tendências  │             │
-│ │        │ │   max-w-600px        │ │ w-72        │             │
-│ │        │ │                      │ │             │             │
-│ │        │ │   [Card branco]      │ │ [trends]    │             │
-│ └────────┘ └──────────────────────┘ └─────────────┘             │
-└─────────────────────────────────────────────────────────────────┘
-```
+| Elemento | Antes | Depois |
+|----------|-------|--------|
+| Container Hero | max-w-2xl (672px) | max-w-5xl (1024px) |
+| Título/Input | max-w-2xl | max-w-2xl (mantém) |
+| Altura cards | h-48 (192px) | h-40 (160px) |
+| Proporção card | ~1:1 (quadrado) | ~16:10 (rectangular) |
 
-### Depois
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ Fundo: Cinza claro (#f4f4f5 ou similar)                          │
-│ ┌────────┐ ┌──────────────────────────────────────────┐         │
-│ │Sidebar │ │         Conteúdo Expandido               │         │
-│ │        │ │         max-w-700px                      │         │
-│ │        │ │                                          │         │
-│ │        │ │    ┌────────────────────────────┐        │         │
-│ │        │ │    │    Card branco (destaca!)  │        │         │
-│ │        │ │    └────────────────────────────┘        │         │
-│ └────────┘ └──────────────────────────────────────────┘         │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Considerações
-
-### Publicidade Futura
-Com a remoção da sidebar de Tendências:
-- **Espaço libertado** pode ser usado para banners de publicidade
-- **Eventos** podem aparecer como cards especiais no feed
-- O feed fica mais limpo e focado
-
-### Contraste Visual
-- Cards brancos destacam-se melhor sobre fundo cinza
-- Cria profundidade visual sem poluir o design
-- Similar à experiência Facebook/LinkedIn
-
-### Responsividade
-- No mobile, nada muda (já não mostrava sidebar)
-- No tablet (md), 2 cards no carousel
-- No desktop (lg+), 3 cards no carousel
+Os cards ficam mais cinematográficos e ocupam melhor o espaço disponível, mantendo a harmonia com o título e campo de pesquisa centralizados.
