@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+ import { useState, useEffect, useRef } from 'react';
 import { Search, Filter, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { Source, ArticleStatus, STATUS_LABELS } from '../../types/admin';
+ import { useDebounce } from '@/hooks/useDebounce';
 
 // Constante para representar "todos" - Radix Select não suporta value=""
 const ALL_VALUE = "__all__";
@@ -55,14 +56,24 @@ export function ArticleFilters({
     showDuplicates: false,
   });
   const [sources, setSources] = useState<Source[]>([]);
+   const [searchInput, setSearchInput] = useState('');
+   const debouncedSearch = useDebounce(searchInput, 300);
+   const isInitialMount = useRef(true);
 
   useEffect(() => {
     fetchSources();
   }, []);
 
+   // Debounced search - only trigger filter change after typing stops
   useEffect(() => {
-    onFilterChange(filters);
-  }, [filters]);
+     if (isInitialMount.current) {
+       isInitialMount.current = false;
+       return;
+     }
+     const newFilters = { ...filters, search: debouncedSearch };
+     setFilters(newFilters);
+     onFilterChange(newFilters);
+   }, [debouncedSearch]);
 
   const fetchSources = async () => {
     const { data } = await supabase
@@ -77,17 +88,29 @@ export function ArticleFilters({
   const updateFilter = (key: keyof ArticleFiltersState, value: any) => {
     // Converter __all__ para string vazia (que representa "todos" na lógica de filtros)
     const actualValue = value === ALL_VALUE ? '' : value;
-    setFilters(prev => ({ ...prev, [key]: actualValue }));
+     
+     // Search is handled separately with debounce
+     if (key === 'search') {
+       setSearchInput(actualValue);
+       return;
+     }
+     
+     const newFilters = { ...filters, [key]: actualValue };
+     setFilters(newFilters);
+     onFilterChange(newFilters);
   };
 
   const clearFilters = () => {
-    setFilters({
+     const resetFilters = {
       search: '',
       sourceId: '',
       category: '',
       status: '',
       showDuplicates: false,
-    });
+     };
+     setSearchInput('');
+     setFilters(resetFilters);
+     onFilterChange(resetFilters);
   };
 
   const hasActiveFilters = filters.search || filters.sourceId || filters.category || filters.status || filters.showDuplicates;
@@ -100,8 +123,8 @@ export function ArticleFilters({
         <Input
           type="search"
           placeholder="Pesquisar por título..."
-          value={filters.search}
-          onChange={(e) => updateFilter('search', e.target.value)}
+           value={searchInput}
+           onChange={(e) => setSearchInput(e.target.value)}
           className="pl-9"
         />
       </div>
