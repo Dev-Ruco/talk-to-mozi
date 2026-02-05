@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { LucideIcon } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface PipelineColumnProps {
   title: string;
@@ -62,13 +63,22 @@ export function PipelineColumn({
       {/* Content */}
       <ScrollArea className="flex-1 p-2">
         {count === 0 ? (
-          <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex h-32 items-center justify-center text-sm text-muted-foreground"
+          >
             {emptyMessage}
-          </div>
+          </motion.div>
         ) : (
-          <div className="flex flex-col gap-2">
-            {children}
-          </div>
+          <motion.div 
+            className="flex flex-col gap-2"
+            layout
+          >
+            <AnimatePresence mode="popLayout">
+              {children}
+            </AnimatePresence>
+          </motion.div>
         )}
       </ScrollArea>
     </div>

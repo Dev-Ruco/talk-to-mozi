@@ -9,7 +9,8 @@ import {
   Clock,
   Eye,
   EyeOff,
-  Zap
+  Zap,
+  Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PipelineArticle } from '../../hooks/usePipeline';
@@ -24,6 +25,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 
 interface PipelineCardProps {
   article: PipelineArticle;
@@ -36,6 +38,7 @@ interface PipelineCardProps {
   onUnpublish?: () => void;
   isProcessing?: boolean;
   isQueued?: boolean;
+  isPublishing?: boolean;
   queuePosition?: number;
   showCheckbox?: boolean;
 }
@@ -51,6 +54,7 @@ export function PipelineCard({
   onUnpublish,
   isProcessing = false,
   isQueued = false,
+  isPublishing = false,
   queuePosition,
   showCheckbox = true,
 }: PipelineCardProps) {
@@ -70,12 +74,18 @@ export function PipelineCard({
   };
 
   return (
-    <div
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.95, x: -20 }}
+      animate={{ opacity: 1, scale: 1, x: 0 }}
+      exit={{ opacity: 0, scale: 0.95, x: 20 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
       className={cn(
-        'group relative rounded-lg border bg-card p-3 transition-all duration-200',
+        'group relative rounded-lg border bg-card p-3 transition-colors duration-200',
         isSelected && 'border-primary ring-1 ring-primary',
         isProcessing && 'animate-pulse border-primary/50 bg-primary/5',
         isQueued && !isProcessing && 'opacity-80',
+        isPublishing && 'opacity-60',
         'hover:shadow-md'
       )}
     >
@@ -182,9 +192,13 @@ export function PipelineCard({
             )}
 
             {onPublish && article.status !== 'published' && (
-              <DropdownMenuItem onClick={onPublish}>
-                <Eye className="mr-2 h-4 w-4" />
-                Publicar
+              <DropdownMenuItem onClick={onPublish} disabled={isPublishing}>
+                {isPublishing ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Eye className="mr-2 h-4 w-4" />
+                )}
+                {isPublishing ? 'A publicar...' : 'Publicar'}
               </DropdownMenuItem>
             )}
 
@@ -208,7 +222,14 @@ export function PipelineCard({
             )}
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {/* Publishing overlay */}
+        {isPublishing && (
+          <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-background/50">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          </div>
+        )}
       </div>
-    </div>
+    </motion.div>
   );
 }

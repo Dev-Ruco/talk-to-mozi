@@ -48,6 +48,7 @@ export function PipelineBoard() {
   const [selectedPending, setSelectedPending] = useState<Set<string>>(new Set());
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [articlesToDelete, setArticlesToDelete] = useState<string[]>([]);
+  const [publishingArticles, setPublishingArticles] = useState<Set<string>>(new Set());
 
   const toggleSelection = (set: Set<string>, id: string, setter: (s: Set<string>) => void) => {
     const newSet = new Set(set);
@@ -84,6 +85,19 @@ export function PipelineBoard() {
     setSelectedPending(new Set());
     setDeleteDialogOpen(false);
     setArticlesToDelete([]);
+  };
+
+  const handlePublish = async (articleId: string) => {
+    setPublishingArticles(prev => new Set(prev).add(articleId));
+    publishArticle(articleId);
+    // Remove from publishing state after a short delay (Realtime will update the UI)
+    setTimeout(() => {
+      setPublishingArticles(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(articleId);
+        return newSet;
+      });
+    }, 2000);
   };
 
   const queuedArticleIds = new Set(queuedArticles.map(q => q.article_id));
@@ -179,12 +193,13 @@ export function PipelineBoard() {
               isSelected={selectedPending.has(article.id)}
               onSelect={() => toggleSelection(selectedPending, article.id, setSelectedPending)}
               onRewrite={() => addToQueue({ articleId: article.id })}
-              onPublish={() => publishArticle(article.id)}
+              onPublish={() => handlePublish(article.id)}
               onDelete={() => {
                 setArticlesToDelete([article.id]);
                 setDeleteDialogOpen(true);
               }}
               isQueued={queuedArticleIds.has(article.id)}
+              isPublishing={publishingArticles.has(article.id)}
             />
           ))}
         </PipelineColumn>

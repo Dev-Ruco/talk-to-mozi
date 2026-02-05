@@ -120,7 +120,7 @@ export default function ArticleEditorPage() {
       toast.error('Erro ao publicar: ' + error.message);
     } else {
       toast.success('Artigo publicado com sucesso!');
-      navigate('/admin/published');
+      navigate('/admin/pipeline');
     }
     setIsSaving(false);
   };
@@ -145,7 +145,7 @@ export default function ArticleEditorPage() {
       toast.error('Erro ao agendar: ' + error.message);
     } else {
       toast.success('Artigo agendado com sucesso!');
-      navigate('/admin/scheduled');
+      navigate('/admin/pipeline');
     }
     setIsSaving(false);
   };
@@ -166,9 +166,9 @@ export default function ArticleEditorPage() {
         <div className="flex h-[calc(100vh-200px)] flex-col items-center justify-center gap-4">
           <p className="text-muted-foreground">O artigo solicitado não existe ou foi removido.</p>
           <Button asChild>
-            <Link to="/admin/inbox">
+            <Link to="/admin/pipeline">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Voltar ao Inbox
+              Voltar ao Pipeline
             </Link>
           </Button>
         </div>
@@ -190,7 +190,7 @@ export default function ArticleEditorPage() {
         <div className="flex items-center justify-between border-b border-border px-4 py-2 bg-background">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="sm" asChild>
-              <Link to="/admin/inbox">
+              <Link to="/admin/pipeline">
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Voltar
               </Link>
