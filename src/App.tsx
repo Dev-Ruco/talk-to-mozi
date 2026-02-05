@@ -15,11 +15,7 @@ import NotFound from "./pages/NotFound";
 // Admin pages
 import AdminLoginPage from "./admin/pages/AdminLoginPage";
 import AdminDashboard from "./admin/pages/AdminDashboard";
-import InboxPage from "./admin/pages/InboxPage";
-import PendingPage from "./admin/pages/PendingPage";
-import EditingPage from "./admin/pages/EditingPage";
-import ScheduledPage from "./admin/pages/ScheduledPage";
-import PublishedPage from "./admin/pages/PublishedPage";
+import PipelinePage from "./admin/pages/PipelinePage";
 import SourcesPage from "./admin/pages/SourcesPage";
 import AdsPage from "./admin/pages/AdsPage";
 import AgentPage from "./admin/pages/AgentPage";
@@ -49,11 +45,7 @@ const App = () => (
           {/* Admin routes */}
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/inbox" element={<InboxPage />} />
-          <Route path="/admin/pending" element={<PendingPage />} />
-          <Route path="/admin/editing" element={<EditingPage />} />
-          <Route path="/admin/scheduled" element={<ScheduledPage />} />
-          <Route path="/admin/published" element={<PublishedPage />} />
+          <Route path="/admin/pipeline" element={<PipelinePage />} />
           <Route path="/admin/sources" element={<SourcesPage />} />
           <Route path="/admin/ads" element={<AdsPage />} />
           <Route path="/admin/agent" element={<AgentPage />} />
