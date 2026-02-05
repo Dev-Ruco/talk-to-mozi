@@ -1,320 +1,227 @@
 
-# Redesenho do Pipeline Editorial Visual
+# Auditoria Técnica Completa do Pipeline Editorial
 
-## Análise do Sistema Actual
+## Resumo Executivo
 
-### Arquitectura Actual (Fragmentada)
-O sistema actual tem 6 páginas separadas no sidebar:
-- **Inbox** → Status `captured` + `rewritten`
-- **Pendentes** → Status `pending`
-- **Em Edição** → Status `approved` + `needs_image`
-- **Agendadas** → Status `scheduled`
-- **Publicadas** → Status `published`
-- **Agente IA** → Página separada com logs
-
-**Problemas identificados:**
-1. Não existe visualização em tempo real do processamento da IA
-2. O utilizador não consegue ver artigos a serem reformulados
-3. A transição entre estados não é visível
-4. Logs da IA estão numa página separada (desconectados do fluxo)
-5. 23 artigos presos em `captured` sem reformulação automática
-
-### Estados Disponíveis na Base de Dados
-```text
-captured    → Captado (ainda não reformulado)
-rewritten   → Reformulado pela IA
-pending     → Pendente de revisão humana
-approved    → Aprovado para edição
-needs_image → Falta imagem
-scheduled   → Agendado
-published   → Publicado
-rejected    → Rejeitado
-```
+A auditoria identificou **6 falhas críticas** e **4 problemas menores** que afectam a sincronização, navegação e coerência visual do pipeline editorial.
 
 ---
 
-## Nova Arquitectura Proposta
+## Falhas Críticas Identificadas
 
-### Vista Kanban Unificada
+### Falha #1: Redireccionamento 404 Após Publicar
 
-Criar uma página principal **Pipeline** (`/admin/pipeline`) que mostra 4 colunas em tempo real:
+**Problema:** Ao publicar um artigo no editor (`ArticleEditorPage.tsx`), o sistema redireciona para `/admin/published` que já não existe.
 
-```text
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│                           PIPELINE EDITORIAL                                      │
-├─────────────────┬─────────────────┬─────────────────┬─────────────────────────────┤
-│                 │                 │                 │                             │
-│     INBOX       │  REFORMULAÇÃO   │   PENDENTES     │        PUBLICADAS           │
-│  (captured)     │  (rewriting)    │ (rewritten +    │       (published)           │
-│                 │                 │  pending)       │                             │
-│  ┌───────────┐  │  ┌───────────┐  │  ┌───────────┐  │  ┌───────────────────────┐  │
-│  │ Artigo 1  │  │  │ Artigo X  │  │  │ Artigo A  │  │  │ Artigo Pub 1          │  │
-│  │ Artigo 2  │  │  │  ⏳ 45%   │  │  │ Artigo B  │  │  │ Artigo Pub 2          │  │
-│  │ Artigo 3  │──►│  │ A reformu-│──►│  │ Artigo C  │──►│ Artigo Pub 3          │  │
-│  │ Artigo 4  │  │  │   lar...  │  │  │           │  │  │                       │  │
-│  │           │  │  ├───────────┤  │  │           │  │  │                       │  │
-│  │           │  │  │ FILA:     │  │  │           │  │  │                       │  │
-│  │           │  │  │ Art. Y    │  │  │           │  │  │                       │  │
-│  │           │  │  │ Art. Z    │  │  │           │  │  │                       │  │
-│  └───────────┘  │  └───────────┘  │  └───────────┘  │  └───────────────────────┘  │
-│                 │                 │                 │                             │
-│  [Seleccionar]  │  [Furar fila]   │  [Editar]       │  [Ver no site]              │
-│  [Reformular]   │                 │  [Reformular]   │  [Despublicar]              │
-│  [Eliminar]     │                 │  [Publicar]     │                             │
-│                 │                 │  [Agendar]      │                             │
-│                 │                 │                 │                             │
-├─────────────────┴─────────────────┴─────────────────┴─────────────────────────────┤
-│  📊 23 no inbox  │  ⏳ 1 a reformular  │  📝 0 pendentes  │  ✅ 2 publicadas       │
-└──────────────────────────────────────────────────────────────────────────────────┘
-```
+| Ficheiro | Linha | Código Actual | Problema |
+|----------|-------|---------------|----------|
+| `src/admin/pages/ArticleEditorPage.tsx` | 123 | `navigate('/admin/published')` | Rota inexistente |
+| `src/admin/pages/ArticleEditorPage.tsx` | 149 | `navigate('/admin/scheduled')` | Rota inexistente |
+| `src/admin/pages/ArticleEditorPage.tsx` | 169 | Link para `/admin/inbox` | Rota inexistente |
+| `src/admin/pages/ArticleEditorPage.tsx` | 193 | Link para `/admin/inbox` | Rota inexistente |
+
+**Causa:** A consolidação do sidebar removeu as rotas antigas (`/admin/published`, `/admin/scheduled`, `/admin/inbox`), mas os redireccionamentos não foram actualizados.
+
+**Correcção:** Substituir todos os redireccionamentos para `/admin/pipeline`.
 
 ---
 
-## Implementação Técnica
+### Falha #2: Realtime NÃO Activo na Tabela `articles`
 
-### Fase 1: Estado de "Em Reformulação" (Realtime)
+**Problema:** Os artigos não aparecem imediatamente nas colunas porque a tabela `articles` não tem Realtime habilitado.
 
-**Problema:** Actualmente não existe forma de saber se um artigo está a ser reformulado.
-
-**Solução:** Criar tabela ou usar campo para rastrear artigos em processamento:
-
+**Análise:**
 ```sql
--- Adicionar coluna para rastrear processamento da IA
-ALTER TABLE articles ADD COLUMN IF NOT EXISTS 
-  ai_processing_started_at TIMESTAMP WITH TIME ZONE;
+-- Tabelas COM realtime activo:
+✅ rewrite_queue (migration 20260205110807)
+✅ agent_logs (migration 20260204210206)
+
+-- Tabela SEM realtime:
+❌ articles (FALTA MIGRAÇÃO!)
 ```
 
-Quando a IA começa a reformular:
-1. Definir `ai_processing_started_at = now()`
-2. Quando termina, limpar o campo e mudar status para `rewritten`
+**Impacto:** O hook `usePipeline.ts` subscreve a `postgres_changes` na tabela `articles`, mas os eventos nunca chegam porque a publicação não existe.
 
-### Fase 2: Criar Componente PipelineBoard
+**Correcção:** Criar migração SQL:
+```sql
+ALTER PUBLICATION supabase_realtime ADD TABLE public.articles;
+```
+
+---
+
+### Falha #3: Artigos Presos no Inbox Sem Reformulação Automática
+
+**Problema:** Existem **23 artigos** com status `captured` que nunca entraram na fila de reformulação automática.
+
+**Análise da Base de Dados:**
+| Status | Contagem |
+|--------|----------|
+| captured | 23 |
+| rewritten | 0 |
+| pending | 0 |
+| published | 3 |
+
+**Causa Provável:** O agente `news-agent` tem um limite de `MAX_AUTO_REWRITES = 5` por execução, mas se houver erros ou timeouts, alguns artigos ficam sem reformular.
+
+**Correcção:** 
+1. Adicionar botão "Reformular Todos" no Inbox
+2. Implementar retry automático para artigos presos em `captured` há mais de X horas
+
+---
+
+### Falha #4: Imagens com URLs `blob:` Inválidas
+
+**Problema:** Artigos publicados têm `image_url` com valores `blob:` que não carregam.
+
+**Dados Actuais:**
+```
+id: a48bc92e-969b-4e8b-acb1-934480889d1c
+image_url: blob:https://talk-to-mozi.lovable.app/74dd5dc5...
+status: published
+```
+
+**Impacto:** As imagens aparecem quebradas no site público.
+
+**Já Corrigido:** O `PublishPanel.tsx` agora bloqueia publicação com imagens `blob:`, mas artigos anteriores precisam de correcção manual.
+
+**Correcção Adicional:** 
+1. Criar query para identificar artigos com `blob:` URLs
+2. Forçar re-upload antes de republicar
+
+---
+
+### Falha #5: Falta de Feedback Visual de Transição
+
+**Problema:** Quando a IA termina a reformulação, o artigo não "anima" para a coluna seguinte - simplesmente aparece/desaparece.
+
+**Causa:** O componente `PipelineCard` não tem animação de entrada/saída integrada com Framer Motion.
+
+**Correcção:** Adicionar animações de transição:
+```tsx
+<AnimatePresence mode="popLayout">
+  {articles.map(article => (
+    <motion.div
+      key={article.id}
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 20 }}
+      layout
+    >
+      <PipelineCard article={article} />
+    </motion.div>
+  ))}
+</AnimatePresence>
+```
+
+---
+
+### Falha #6: Progresso da IA é Simulado (Não Real)
+
+**Problema:** A barra de progresso na coluna "Em Reformulação" usa um intervalo simulado que não reflecte o progresso real.
+
+**Código Actual (`RewritingColumn.tsx`, linha 27-41):**
+```tsx
+// Simulate progress animation
+const interval = setInterval(() => {
+  setProgress(prev => Math.min(95, prev + (100 - prev) / 20));
+}, 500);
+```
+
+**Causa:** A Edge Function `process-queue` não emite eventos de progresso durante a reformulação.
+
+**Correcção de Longo Prazo:** Implementar progresso real via Supabase Realtime Presence ou updates incrementais na tabela `rewrite_queue`.
+
+**Correcção Imediata:** Manter animação simulada mas torná-la mais responsiva (acelerar quando recebe evento de conclusão).
+
+---
+
+## Problemas Menores
+
+### Problema #7: QueryClient Instável
+
+**Ficheiro:** `src/App.tsx`, linha 27
+```tsx
+const queryClient = new QueryClient();
+```
+
+**Risco:** O `queryClient` é recriado em cada render do App, o que pode causar perda de cache.
+
+**Correcção:** Mover para fora do componente ou usar `useMemo`.
+
+---
+
+### Problema #8: Stale Time Muito Curto
+
+**Ficheiro:** `src/admin/hooks/usePipeline.ts`
+- Linha 42: `staleTime: 10000` (10 segundos para artigos)
+- Linha 59: `staleTime: 5000` (5 segundos para fila)
+
+**Risco:** Muitos refetches desnecessários quando o Realtime já está a actualizar os dados.
+
+**Correcção:** Aumentar `staleTime` para 30-60 segundos quando Realtime estiver activo.
+
+---
+
+### Problema #9: Subscrição Realtime Duplicada
+
+**Ficheiro:** `src/admin/hooks/usePipeline.ts`, linhas 63-96
+
+**Problema:** `refetchArticles` e `refetchQueue` são incluídos no array de dependências do `useEffect`, causando potenciais re-subscrições.
+
+**Correcção:** Usar `useCallback` para estabilizar as funções ou remover do array de dependências.
+
+---
+
+### Problema #10: Falta de Loading State no Publish
 
 **Ficheiro:** `src/admin/components/pipeline/PipelineBoard.tsx`
 
-```typescript
-interface PipelineColumn {
-  id: string;
-  title: string;
-  statuses: ArticleStatus[];
-  count: number;
-  articles: Article[];
-  isProcessing?: boolean;
-  processingArticle?: Article;
-  queue?: Article[];
-}
-```
+**Problema:** Ao clicar "Publicar" no menu de contexto do `PipelineCard`, não há feedback visual enquanto aguarda a resposta da base de dados.
 
-**Colunas:**
-1. **Inbox** - Artigos `captured` (não reformulados)
-2. **Em Reformulação** - Artigos com `ai_processing_started_at` preenchido
-3. **Pendentes** - Artigos `rewritten` + `pending`
-4. **Publicadas** - Artigos `published`
+**Correcção:** Adicionar estado `isPublishing` específico por artigo.
 
-### Fase 3: Componente PipelineCard (Artigo Individual)
+---
 
-**Ficheiro:** `src/admin/components/pipeline/PipelineCard.tsx`
+## Plano de Correcção
 
-Card compacto com:
-- Título (truncado)
-- Fonte + Credibilidade
-- Tempo desde captura
-- Indicador visual de estado
-- Acções rápidas (hover)
+### Ficheiros a Modificar
 
-### Fase 4: Coluna "Em Reformulação" com Animação
+| Ficheiro | Alterações |
+|----------|-----------|
+| `src/admin/pages/ArticleEditorPage.tsx` | Corrigir redireccionamentos para `/admin/pipeline` |
+| `src/admin/hooks/usePipeline.ts` | Estabilizar callbacks, aumentar staleTime |
+| `src/admin/components/pipeline/PipelineBoard.tsx` | Adicionar estados de loading por artigo |
+| `src/admin/components/pipeline/PipelineColumn.tsx` | Adicionar AnimatePresence para transições |
+| `src/admin/components/pipeline/PipelineCard.tsx` | Integrar com motion.div |
+| `src/App.tsx` | Mover QueryClient para fora do componente |
 
-**Ficheiro:** `src/admin/components/pipeline/RewritingColumn.tsx`
-
-Mostra:
-- Artigo actualmente a ser reformulado (com spinner/progress)
-- Fila de espera (artigos seleccionados para reformular)
-- Botão "Furar fila" para priorizar artigo
-
-### Fase 5: Sistema de Fila de Reformulação
-
-**Nova tabela:** `rewrite_queue` (ou usar Realtime Presence)
+### Migração SQL Necessária
 
 ```sql
-CREATE TABLE rewrite_queue (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  article_id UUID REFERENCES articles(id),
-  priority INTEGER DEFAULT 0,
-  queued_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  started_at TIMESTAMP WITH TIME ZONE,
-  completed_at TIMESTAMP WITH TIME ZONE,
-  status TEXT DEFAULT 'queued' -- queued, processing, completed, failed
-);
-```
-
-### Fase 6: Edge Function para Reformulação Individual
-
-Criar endpoint para reformular artigo específico (fura a fila):
-
-**Ficheiro:** `supabase/functions/rewrite-single/index.ts`
-
-```typescript
-// POST { article_id: string, priority: 'high' | 'normal' }
-// Reformula artigo imediatamente ou adiciona à fila
-```
-
-### Fase 7: Actualizar Sidebar
-
-Simplificar navegação:
-
-```text
-ANTES:                    DEPOIS:
-─────────                 ───────
-Dashboard                 Dashboard
-Inbox                     Pipeline ← Nova página unificada
-Pendentes                 ─────────
-Em Edição                 Galeria
-Agendadas                 Fontes
-Publicadas                Publicidade
-─────────                 Agente IA (logs + config)
-Galeria                   ─────────
-Fontes                    Equipa
-...                       Definições
+-- Habilitar realtime na tabela articles para sincronização instantânea
+ALTER PUBLICATION supabase_realtime ADD TABLE public.articles;
 ```
 
 ---
 
-## Ficheiros a Criar/Modificar
+## Verificação de Coerência Estado-Interface
 
-| Ficheiro | Acção | Descrição |
-|----------|-------|-----------|
-| `src/admin/pages/PipelinePage.tsx` | **CRIAR** | Página principal do pipeline Kanban |
-| `src/admin/components/pipeline/PipelineBoard.tsx` | **CRIAR** | Componente Kanban com 4 colunas |
-| `src/admin/components/pipeline/PipelineCard.tsx` | **CRIAR** | Card de artigo compacto |
-| `src/admin/components/pipeline/PipelineColumn.tsx` | **CRIAR** | Coluna individual do Kanban |
-| `src/admin/components/pipeline/RewritingColumn.tsx` | **CRIAR** | Coluna especial com animação de IA |
-| `src/admin/hooks/usePipeline.ts` | **CRIAR** | Hook com subscriptions realtime |
-| `supabase/functions/rewrite-single/index.ts` | **CRIAR** | Edge function para reformular individualmente |
-| `src/admin/components/layout/AdminSidebar.tsx` | **MODIFICAR** | Simplificar navegação |
-| `src/App.tsx` | **MODIFICAR** | Adicionar rota `/admin/pipeline` |
+| Componente | Estado BD | Interface | Acção Utilizador | Resposta IA | Coerente? |
+|------------|-----------|-----------|------------------|-------------|-----------|
+| Inbox → Reformulação | `captured` → queue `queued` | Card move para fila | Clicar "Reformular" | N/A | ✅ |
+| Reformulação → Pendentes | `rewritten` | Card aparece em Pendentes | N/A | Completa tarefa | ⚠️ Delay |
+| Pendentes → Publicadas | `published` | Redireciona 404 | Clicar "Publicar" | N/A | ❌ Erro |
+| Publicadas → Site | `published` | Abre `/artigo/:id` | Clicar "Ver no site" | N/A | ✅ |
 
 ---
 
-## Fluxo de Interacções
-
-### 1. Enviar para Reformulação (Inbox → Reformulação)
-```text
-Utilizador clica "Reformular" no artigo
-    ↓
-Artigo entra na fila de reformulação (com animação)
-    ↓
-Coluna "Em Reformulação" mostra o progresso
-    ↓
-Quando termina, artigo move para "Pendentes"
-```
-
-### 2. Furar a Fila
-```text
-Utilizador clica "Furar fila" em artigo na fila
-    ↓
-Artigo vai para o topo da fila
-    ↓
-Se não houver reformulação activa, começa imediatamente
-```
-
-### 3. Reformular Novamente (Pendentes)
-```text
-Utilizador clica "Reformular novamente"
-    ↓
-Artigo volta para fila de reformulação
-    ↓
-Após reformular, volta para "Pendentes"
-```
-
-### 4. Publicar
-```text
-Utilizador clica "Publicar" em artigo pendente
-    ↓
-Validação: tem imagem válida?
-    ↓
-Se sim: artigo move para "Publicadas"
-Se não: modal para adicionar imagem
-```
-
----
-
-## Realtime e Animações
-
-### Subscriptions Supabase
-
-```typescript
-// Hook usePipeline.ts
-useEffect(() => {
-  // Subscrição para mudanças nos artigos
-  const articlesChannel = supabase
-    .channel('pipeline_articles')
-    .on('postgres_changes', 
-      { event: '*', schema: 'public', table: 'articles' },
-      handleArticleChange
-    )
-    .subscribe();
-
-  // Subscrição para logs do agente (mostra processamento)
-  const logsChannel = supabase
-    .channel('pipeline_logs')
-    .on('postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'agent_logs',
-        filter: 'action=in.(ai_auto_rewrite,ai_auto_complete,ai_auto_error)' },
-      handleLogUpdate
-    )
-    .subscribe();
-}, []);
-```
-
-### Animações CSS
-
-```css
-/* Artigo a ser processado */
-.processing-card {
-  animation: pulse 2s ease-in-out infinite;
-  border-color: var(--primary);
-}
-
-/* Artigo a entrar na coluna */
-.entering-card {
-  animation: slideIn 0.3s ease-out;
-}
-
-/* Artigo a sair da coluna */
-.leaving-card {
-  animation: slideOut 0.3s ease-in;
-}
-```
-
----
-
-## Resultado Esperado
-
-Após implementação:
+## Resultado Esperado Após Correcções
 
 | Antes | Depois |
 |-------|--------|
-| 6 páginas separadas | 1 página visual unificada |
-| Não vê reformulação em tempo real | Vê artigo a ser reformulado com progresso |
-| Navegação confusa | Fluxo visual claro da esquerda para direita |
-| Logs separados | Processamento integrado no pipeline |
-| Selecção individual | Selecção múltipla + acções em lote |
-| Sem fila de prioridade | Fila com opção de "furar" |
-
----
-
-## Considerações Técnicas
-
-### Performance
-- Usar React Query com staleTime para reduzir refetches
-- Virtualização se houver muitos artigos (>100 por coluna)
-- Debounce nas acções de drag-and-drop
-
-### Mobile
-- Em mobile, mostrar uma coluna de cada vez com tabs
-- Swipe para navegar entre colunas
-
-### Persistência de Estado
-- Guardar preferências do utilizador (colunas colapsadas, filtros)
-- LocalStorage para estado temporário
-
+| 404 ao publicar | Redireciona para Pipeline |
+| Delay de 10+ segundos na transição | Actualização instantânea via Realtime |
+| Imagens `blob:` quebradas | Bloqueio preventivo + alertas visuais |
+| Sem feedback de loading | Spinners em cada acção |
+| Transições abruptas | Animações suaves entre colunas |
+| 23 artigos presos no Inbox | Opção de reformular em lote |
