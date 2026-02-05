@@ -223,6 +223,50 @@ export type Database = {
         }
         Relationships: []
       }
+      rewrite_queue: {
+        Row: {
+          article_id: string
+          completed_at: string | null
+          created_at: string | null
+          error_message: string | null
+          id: string
+          priority: number | null
+          queued_at: string | null
+          started_at: string | null
+          status: string | null
+        }
+        Insert: {
+          article_id: string
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          priority?: number | null
+          queued_at?: string | null
+          started_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          article_id?: string
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          priority?: number | null
+          queued_at?: string | null
+          started_at?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rewrite_queue_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sources: {
         Row: {
           articles_captured: number | null

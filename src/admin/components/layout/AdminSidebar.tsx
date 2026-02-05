@@ -20,13 +20,11 @@ import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
+import { Workflow } from 'lucide-react';
+
 const navItems = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
-  { to: '/admin/inbox', icon: Inbox, label: 'Inbox', roles: ['admin', 'editor_chefe', 'editor', 'revisor'] },
-  { to: '/admin/pending', icon: Clock, label: 'Pendentes', roles: ['admin', 'editor_chefe', 'revisor'] },
-  { to: '/admin/editing', icon: Edit3, label: 'Em Edição', roles: ['admin', 'editor_chefe', 'editor'] },
-  { to: '/admin/scheduled', icon: Calendar, label: 'Agendadas', roles: ['admin', 'editor_chefe'] },
-  { to: '/admin/published', icon: CheckCircle, label: 'Publicadas' },
+  { to: '/admin/pipeline', icon: Workflow, label: 'Pipeline', roles: ['admin', 'editor_chefe', 'editor', 'revisor'] },
   { divider: true },
   { to: '/admin/media', icon: Image, label: 'Galeria', roles: ['admin', 'editor_chefe', 'editor'] },
   { to: '/admin/sources', icon: Rss, label: 'Fontes', roles: ['admin', 'editor_chefe'] },
