@@ -516,7 +516,24 @@ Deno.serve(async (req) => {
               article_title: item.title.substring(0, 80),
             }, source.id, 1, 1);
 
-            // Queue for auto-rewrite if enabled
+            // Auto-add to rewrite queue for background processing
+            if (insertedArticle?.id) {
+              try {
+                await supabase
+                  .from("rewrite_queue")
+                  .insert({
+                    article_id: insertedArticle.id,
+                    priority: 0, // Normal priority
+                    status: "queued",
+                  });
+                console.log(`Added article ${insertedArticle.id} to rewrite queue`);
+              } catch (queueError) {
+                console.warn(`Failed to add to rewrite queue:`, queueError);
+                // Don't block - article was saved successfully
+              }
+            }
+
+            // Also queue for immediate auto-rewrite if enabled (legacy behavior)
             if (
               autoRewrite &&
               insertedArticle?.id &&

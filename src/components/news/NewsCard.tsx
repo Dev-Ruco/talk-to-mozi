@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react';
+import { useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Clock, MessageCircle, Heart } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Clock, MessageCircle, Share2 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { Article } from '@/types/news';
 import { getCategoryById, getCategoryColor } from '@/data/categories';
 import { Badge } from '@/components/ui/badge';
@@ -9,41 +9,55 @@ import { Button } from '@/components/ui/button';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { cn } from '@/lib/utils';
 import { getValidImageUrl } from '@/lib/imageUtils';
+import { toast } from 'sonner';
 
 interface NewsCardProps {
   article: Article;
-  isSaved?: boolean;
-  onToggleSave?: () => void;
   variant?: 'default' | 'compact' | 'sidebar';
 }
 
-export function NewsCard({ article, isSaved, onToggleSave, variant = 'default' }: NewsCardProps) {
+export function NewsCard({ article, variant = 'default' }: NewsCardProps) {
   const navigate = useNavigate();
   const category = getCategoryById(article.category);
   const timeAgo = getTimeAgo(article.publishedAt);
   const CategoryIcon = category?.icon;
-  const [showBigHeart, setShowBigHeart] = useState(false);
-  const lastTapRef = useRef<number>(0);
 
-  const handleLike = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    onToggleSave?.();
-  };
-
-  const handleChat = (e: React.MouseEvent) => {
+  const handleExplore = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     navigate(`/artigo/${article.id}#chat`);
   };
 
-  // Double tap to like (Instagram style)
-  const handleDoubleClick = (e: React.MouseEvent) => {
+  const handleShare = async (e: React.MouseEvent) => {
     e.preventDefault();
-    if (!isSaved) {
-      onToggleSave?.();
-      setShowBigHeart(true);
-      setTimeout(() => setShowBigHeart(false), 600);
+    e.stopPropagation();
+    
+    const url = `${window.location.origin}/artigo/${article.id}`;
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: article.title,
+          text: article.summary,
+          url,
+        });
+      } catch (err) {
+        // User cancelled or share failed
+        if ((err as Error).name !== 'AbortError') {
+          await copyToClipboard(url);
+        }
+      }
+    } else {
+      await copyToClipboard(url);
+    }
+  };
+
+  const copyToClipboard = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('Link copiado!');
+    } catch {
+      toast.error('Não foi possível copiar o link');
     }
   };
 
@@ -124,39 +138,19 @@ export function NewsCard({ article, isSaved, onToggleSave, variant = 'default' }
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      {/* Large Image with double-click to like */}
-      <div 
-        className="relative cursor-pointer"
-        onDoubleClick={handleDoubleClick}
-      >
-        <Link to={`/artigo/${article.id}`}>
-          <AspectRatio ratio={16 / 9}>
-            <img
-              src={getValidImageUrl(article.imageUrl)}
-              alt={article.title}
-              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-              onError={(e) => {
-                e.currentTarget.src = '/placeholder.svg';
-              }}
-            />
-          </AspectRatio>
-        </Link>
-        
-        {/* Big heart animation on double-click */}
-        <AnimatePresence>
-          {showBigHeart && (
-            <motion.div
-              className="absolute inset-0 flex items-center justify-center pointer-events-none"
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 1.2, opacity: 0 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-            >
-              <Heart className="h-24 w-24 fill-red-500 text-red-500 drop-shadow-lg" />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      {/* Large Image - fully clickable */}
+      <Link to={`/artigo/${article.id}`} className="block">
+        <AspectRatio ratio={16 / 9}>
+          <img
+            src={getValidImageUrl(article.imageUrl)}
+            alt={article.title}
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+            onError={(e) => {
+              e.currentTarget.src = '/placeholder.svg';
+            }}
+          />
+        </AspectRatio>
+      </Link>
       
       {/* Content */}
       <div className="p-4">
@@ -187,44 +181,27 @@ export function NewsCard({ article, isSaved, onToggleSave, variant = 'default' }
           {article.summary}
         </p>
         
-        {/* Actions */}
-        <div className="mt-4 flex items-center gap-2">
+        {/* Actions - Simplified */}
+        <div className="mt-4 flex items-center justify-between">
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
             <Button
               variant="default"
               size="sm"
               className="gap-1.5"
-              onClick={handleChat}
+              onClick={handleExplore}
             >
               <MessageCircle className="h-4 w-4" />
-              Conversar
-            </Button>
-          </motion.div>
-          
-          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-            <Button
-              variant="outline"
-              size="sm"
-              asChild
-            >
-              <Link to={`/artigo/${article.id}`}>
-                Abrir
-              </Link>
+              Explorar a notícia
             </Button>
           </motion.div>
           
           <motion.button
-            className="ml-auto flex h-8 w-8 items-center justify-center rounded-md"
-            onClick={handleLike}
+            className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent"
+            onClick={handleShare}
             whileTap={{ scale: 0.9 }}
-            animate={isSaved ? { scale: [1, 1.15, 1] } : {}}
-            transition={{ duration: 0.2 }}
           >
-            <Heart className={cn(
-              "h-5 w-5 transition-colors",
-              isSaved ? "fill-red-500 text-red-500" : "text-muted-foreground hover:text-red-500"
-            )} />
-            <span className="sr-only">{isSaved ? 'Remover' : 'Amei'}</span>
+            <Share2 className="h-4 w-4 text-muted-foreground" />
+            <span className="sr-only">Partilhar</span>
           </motion.button>
         </div>
       </div>

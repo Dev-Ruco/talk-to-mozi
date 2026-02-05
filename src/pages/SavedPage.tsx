@@ -5,7 +5,7 @@ import { getArticleById } from '@/data/articles';
 import { Heart } from 'lucide-react';
 
 export default function SavedPage() {
-  const { likedIds, isLiked, toggleLike } = useLikedArticles();
+  const { likedIds } = useLikedArticles();
 
   const likedArticles = likedIds
     .map(id => getArticleById(id))
@@ -30,8 +30,6 @@ export default function SavedPage() {
                 <NewsCard
                   key={article.id}
                   article={article}
-                  isSaved={isLiked(article.id)}
-                  onToggleSave={() => toggleLike(article.id)}
                 />
               )
             ))}

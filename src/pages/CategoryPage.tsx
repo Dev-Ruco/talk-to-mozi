@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
 import { CategoryChips } from '@/components/news/CategoryChips';
@@ -7,6 +8,11 @@ import { getCategoryById } from '@/data/categories';
 export default function CategoryPage() {
   const { categoryId } = useParams<{ categoryId: string }>();
   const category = getCategoryById(categoryId || '');
+
+  // Scroll to top when page loads or category changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [categoryId]);
 
   if (!category) {
     return (
