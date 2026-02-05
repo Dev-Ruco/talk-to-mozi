@@ -7,7 +7,8 @@ import { ArticleChat } from '@/components/news/ArticleChat';
 import { NewsCard } from '@/components/news/NewsCard';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { getArticleById, getRelatedArticles } from '@/data/articles';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useArticle, useRelatedArticles } from '@/hooks/usePublishedArticles';
 import { getCategoryById, getCategoryColor } from '@/data/categories';
 import { useLikedArticles } from '@/hooks/useLikedArticles';
 import { cn } from '@/lib/utils';
@@ -18,7 +19,15 @@ export default function ArticlePage() {
   const [showFloatingButton, setShowFloatingButton] = useState(true);
   const [showBigHeart, setShowBigHeart] = useState(false);
   
-  const article = getArticleById(id || '');
+  // Fetch article from database
+  const { data: article, isLoading, isError } = useArticle(id);
+  
+  // Fetch related articles
+  const { data: relatedArticles = [] } = useRelatedArticles(
+    article?.category,
+    id || '',
+    4
+  );
   
   // Hide floating button when near the chat section
   useEffect(() => {
@@ -34,13 +43,34 @@ export default function ArticlePage() {
     handleScroll();
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-  
-  if (!article) {
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <Layout showSidebars={false}>
+        <div className="mx-auto max-w-3xl py-4">
+          <Skeleton className="mb-4 h-6 w-20" />
+          <Skeleton className="mb-4 h-12 w-full" />
+          <Skeleton className="mb-2 h-4 w-1/2" />
+          <Skeleton className="mb-6 h-20 w-full" />
+          <Skeleton className="mb-8 aspect-video w-full rounded-xl" />
+          <div className="space-y-4">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Error or not found
+  if (isError || !article) {
     return (
       <Layout showSidebars={false}>
         <div className="flex flex-col items-center justify-center py-20">
           <h1 className="text-2xl font-bold">Artigo não encontrado</h1>
-          <p className="mt-2 text-muted-foreground">O artigo que procura não existe.</p>
+          <p className="mt-2 text-muted-foreground">O artigo que procura não existe ou ainda não foi publicado.</p>
           <Link to="/" className="mt-4 text-primary hover:underline">
             Voltar ao início
           </Link>
@@ -50,7 +80,6 @@ export default function ArticlePage() {
   }
 
   const category = getCategoryById(article.category);
-  const relatedArticles = getRelatedArticles(article);
   const liked = isLiked(article.id);
 
   const handleShare = async () => {
@@ -206,7 +235,7 @@ export default function ArticlePage() {
         </div>
 
         {/* 5. Quick Facts */}
-        {article.quickFacts.length > 0 && (
+        {article.quickFacts && article.quickFacts.length > 0 && (
           <div className="mt-8 rounded-xl border bg-muted/30 p-6">
             <h2 className="font-display text-lg font-semibold mb-4">
               📌 Factos Rápidos

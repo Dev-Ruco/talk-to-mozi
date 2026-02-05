@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
-import { Upload, Calendar as CalendarIcon, Check, Clock, Image as ImageIcon } from 'lucide-react';
+import { Upload, Calendar as CalendarIcon, Check, Clock, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Calendar } from '@/components/ui/calendar';
+import { Progress } from '@/components/ui/progress';
 import {
   Popover,
   PopoverContent,
@@ -23,6 +24,7 @@ import {
 import { Article, ArticleStatus, STATUS_LABELS, STATUS_COLORS } from '../../types/admin';
 import { categories } from '@/data/categories';
 import { cn } from '@/lib/utils';
+import { useImageUpload } from '@/admin/hooks/useImageUpload';
 
 interface PublishPanelProps {
   article: Article;
@@ -50,6 +52,12 @@ export function PublishPanel({
       : '09:00'
   );
 
+  const { uploadImage, isUploading, progress } = useImageUpload({
+    onSuccess: (url) => {
+      onUpdate({ image_url: url });
+    },
+  });
+
   const handleSchedule = () => {
     if (scheduleDate) {
       const [hours, minutes] = scheduleTime.split(':').map(Number);
@@ -59,19 +67,14 @@ export function PublishPanel({
     }
   };
 
-  const handleImageUpload = () => {
-    // TODO: Implement image upload to Supabase Storage
+  const handleImageUpload = async () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        // For now, just use a placeholder
-        onUpdate({ 
-          image_url: URL.createObjectURL(file),
-          image_caption: file.name 
-        });
+      if (file && article.id) {
+        await uploadImage(file, article.id);
       }
     };
     input.click();
@@ -103,8 +106,13 @@ export function PublishPanel({
                   variant="secondary"
                   className="absolute bottom-2 right-2"
                   onClick={handleImageUpload}
+                  disabled={isUploading}
                 >
-                  <Upload className="mr-1 h-3 w-3" />
+                  {isUploading ? (
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                  ) : (
+                    <Upload className="mr-1 h-3 w-3" />
+                  )}
                   Alterar
                 </Button>
               </div>
@@ -113,14 +121,29 @@ export function PublishPanel({
                 variant="outline"
                 className="w-full h-32 border-dashed"
                 onClick={handleImageUpload}
+                disabled={isUploading}
               >
                 <div className="flex flex-col items-center gap-2">
-                  <ImageIcon className="h-8 w-8 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">
-                    Carregar imagem
-                  </span>
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="h-8 w-8 text-muted-foreground animate-spin" />
+                      <span className="text-sm text-muted-foreground">
+                        A carregar... {progress}%
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">
+                        Carregar imagem
+                      </span>
+                    </>
+                  )}
                 </div>
               </Button>
+            )}
+            {isUploading && (
+              <Progress value={progress} className="h-1" />
             )}
             <Input
               placeholder="Legenda da imagem..."

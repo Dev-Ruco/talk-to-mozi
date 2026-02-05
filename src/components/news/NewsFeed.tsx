@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { articles, getArticlesByCategory } from '@/data/articles';
+import { usePublishedArticles, adaptArticle } from '@/hooks/usePublishedArticles';
 import { sponsoredAds } from '@/data/ads';
 import { NewsCard } from './NewsCard';
 import { SponsoredCard } from './SponsoredCard';
@@ -13,37 +13,30 @@ interface NewsFeedProps {
 }
 
 export function NewsFeed({ categoryFilter, initialCount = 6 }: NewsFeedProps) {
-  const [displayCount, setDisplayCount] = useState(initialCount);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const { isLiked, toggleLike } = useLikedArticles();
   const loadingRef = useRef<HTMLDivElement>(null);
 
-  const filteredArticles = categoryFilter
-    ? getArticlesByCategory(categoryFilter)
-    : articles;
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    isError,
+  } = usePublishedArticles({
+    category: categoryFilter,
+    limit: initialCount,
+  });
 
-  const sortedArticles = [...filteredArticles].sort(
-    (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
-  );
-
-  const displayedArticles = sortedArticles.slice(0, displayCount);
-  const hasMore = displayCount < sortedArticles.length;
-
-  // Reset display count when category changes
-  useEffect(() => {
-    setDisplayCount(initialCount);
-  }, [categoryFilter, initialCount]);
+  // Flatten all pages into a single array
+  const displayedArticles = data?.pages.flatMap((page) => page.articles) || [];
+  const hasMore = !!hasNextPage;
 
   const loadMore = useCallback(() => {
-    if (isLoadingMore) return;
-    setIsLoadingMore(true);
-    
-    // Small delay for loading animation
-    setTimeout(() => {
-      setDisplayCount(prev => Math.min(prev + 6, sortedArticles.length));
-      setIsLoadingMore(false);
-    }, 300);
-  }, [sortedArticles.length, isLoadingMore]);
+    if (!isFetchingNextPage && hasNextPage) {
+      fetchNextPage();
+    }
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   // Infinite scroll with IntersectionObserver
   useEffect(() => {
@@ -63,11 +56,38 @@ export function NewsFeed({ categoryFilter, initialCount = 6 }: NewsFeedProps) {
     return () => observer.disconnect();
   }, [hasMore, loadMore]);
 
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="mx-auto max-w-[600px] space-y-4">
+        <div className="flex flex-col gap-4">
+          {[...Array(3)].map((_, i) => (
+            <Skeleton key={i} className="h-64 w-full rounded-xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (isError) {
+    return (
+      <div className="py-12 text-center">
+        <p className="text-muted-foreground">
+          Erro ao carregar notícias.
+        </p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Tente actualizar a página.
+        </p>
+      </div>
+    );
+  }
+
   if (displayedArticles.length === 0) {
     return (
       <div className="py-12 text-center">
         <p className="text-muted-foreground">
-          Ainda não há notícias aqui.
+          Ainda não há notícias publicadas.
         </p>
         <p className="mt-2 text-sm text-muted-foreground">
           Experimente perguntar no chat sobre este tema.
@@ -117,7 +137,7 @@ export function NewsFeed({ categoryFilter, initialCount = 6 }: NewsFeedProps) {
       {/* Loading indicator */}
       <div ref={loadingRef} className="flex justify-center pt-4">
         {hasMore && (
-          isLoadingMore ? (
+          isFetchingNextPage ? (
             <div className="flex flex-col gap-4 w-full">
               <Skeleton className="h-64 w-full rounded-xl" />
               <Skeleton className="h-64 w-full rounded-xl" />
