@@ -88,29 +88,28 @@ export function HeroChat() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
-          <div className="relative">
+          <div className="flex gap-2">
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Escreva qualquer tema: inflação, chuvas, política, dólar…"
-              className="h-14 pr-14 text-base md:h-16 md:text-lg"
+              className="h-14 flex-1 text-base md:h-16 md:text-lg"
             />
             <motion.div
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="absolute right-2 top-1/2 -translate-y-1/2"
             >
               <Button
                 type="submit"
                 size="icon"
-                className="h-10 w-10 md:h-12 md:w-12"
+                className="h-14 w-14 shrink-0 md:h-16 md:w-16"
                 disabled={isSending}
               >
                 <motion.div
                   animate={isSending ? { x: [0, 10], opacity: [1, 0] } : {}}
                   transition={{ duration: 0.2 }}
                 >
-                  <Send className="h-5 w-5" />
+                  <Send className="h-5 w-5 md:h-6 md:w-6" />
                 </motion.div>
               </Button>
             </motion.div>
