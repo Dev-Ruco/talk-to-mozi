@@ -1,220 +1,242 @@
 
-# Reformulacao Automatica de Artigos pelo Agente
+# Ligacao Frontend-Backend: Artigos Publicados em Tempo Real
 
-## Fluxo Actual (Confirmado pela Analise)
+## Problema Actual
 
-```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           FLUXO ACTUAL                                      │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   1. AGENTE                    2. INBOX                    3. EDITOR        │
-│   ─────────                    ─────────                   ─────────        │
-│   Puxa RSS                     Usuario ve artigos          Usuario clica    │
-│   Guarda artigos               em status "captured"        "Reformular"     │
-│   status = "captured"          Manualmente                 IA reformula     │
-│                                                            status="rewritten"│
-│                                                                             │
-│   4. EDITOR (cont.)            5. PUBLICACAO                                │
-│   ─────────────────            ──────────────                               │
-│   Usuario adiciona:            Usuario publica             MUITOS PASSOS    │
-│   - Foto                       ou agenda                   MANUAIS!         │
-│   - Tags                                                                    │
-│   - Categoria                                                               │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+O frontend esta completamente desligado da base de dados:
 
-**Problema actual:**
-- O agente apenas captura artigos (status `captured`)
-- A reformulacao depende de clique manual no botao "Reformular"
-- Existem 24 artigos no status `captured` que precisam de reformulacao manual
+| Componente | Actualmente | Deveria |
+|------------|-------------|---------|
+| NewsFeed | Importa `articles` de `src/data/articles.ts` (mock) | Buscar artigos `status='published'` do Supabase |
+| HeroChat (slider) | Usa `getLatestArticles()` do mock | Buscar ultimos 4 artigos publicados |
+| ArticlePage | Usa `getArticleById()` do mock | Buscar artigo por ID/slug do Supabase |
+| Imagens | URLs `blob:` temporarias | Upload para Supabase Storage com URLs permanentes |
+
+**Resultado**: Mesmo publicando artigos no CRM, o site nao actualiza.
 
 ---
 
-## Novo Fluxo Proposto
+## Arquitectura Proposta
 
 ```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           NOVO FLUXO AUTOMATIZADO                           │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   1. AGENTE (AUTOMATICO)                                                    │
-│   ──────────────────────                                                    │
-│   a) Puxa RSS                                                               │
-│   b) Para cada artigo NOVO:                                                 │
-│      - Guarda artigo temporariamente                                        │
-│      - Chama Lovable AI com prompt "tom jornalistico"                       │
-│      - Guarda titulo, lead e conteudo reformulados                          │
-│      - Define status = "rewritten" (JA reformulado!)                        │
-│                                                                             │
-│   2. INBOX / EDICAO                                                         │
-│   ─────────────────                                                         │
-│   Usuario ve artigos JA reformulados                                        │
-│   Pode EDITAR o texto (opcional)                                            │
-│   Adiciona:                                                                 │
-│   - Foto (obrigatorio para publicar)                                        │
-│   - Tags                                                                    │
-│   - Categoria                                                               │
-│                                                                             │
-│   3. PUBLICACAO                                                             │
-│   ─────────────                                                             │
-│   Usuario publica ou agenda                                                 │
-│                                                                             │
-│   APENAS 2-3 PASSOS MANUAIS!                                                │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+                    BACKEND (Supabase)                    FRONTEND (React)
+                    
+┌─────────────────────────────────────┐     ┌─────────────────────────────────────┐
+│                                     │     │                                     │
+│  articles (tabela)                  │     │  usePublishedArticles() ◄───────────┤
+│  ├── status = 'published'           │────►│  - Busca artigos publicados         │
+│  ├── image_url (Storage URL)        │     │  - Filtro por categoria             │
+│  ├── published_at                   │     │  - Ordenacao por data               │
+│  └── highlight_type                 │     │  - Paginacao infinita               │
+│                                     │     │                                     │
+│  article-images (bucket Storage)    │     │  useArticle(id) ◄───────────────────┤
+│  └── URLs permanentes               │────►│  - Busca artigo individual          │
+│                                     │     │  - Para pagina de artigo            │
+│                                     │     │                                     │
+│  RLS: articles_public_published     │     │  Components:                        │
+│  └── Permite SELECT para anon       │     │  - NewsFeed (usa hook)              │
+│                                     │     │  - HeroChat (usa hook)              │
+│                                     │     │  - ArticlePage (usa hook)           │
+│                                     │     │                                     │
+└─────────────────────────────────────┘     └─────────────────────────────────────┘
 ```
 
 ---
 
-## Alteracoes Tecnicas
+## Plano de Implementacao
 
-### 1. Modificar Edge Function `news-agent`
+### Fase 1: Hooks para Artigos Publicados
 
-O agente actual salva artigos e termina. O novo fluxo deve:
+**Criar `src/hooks/usePublishedArticles.ts`**
 
-**Apos salvar cada artigo:**
 ```typescript
-// Depois de inserir o artigo com sucesso
-if (insertedArticle?.id) {
-  // Chamar a funcao de reescrita automaticamente
-  await rewriteArticle(supabase, insertedArticle.id, item.title, cleanText(...));
+// Hook para buscar artigos publicados do Supabase
+export function usePublishedArticles(options?: {
+  category?: string;
+  limit?: number;
+  highlightType?: 'hero' | 'trending' | 'normal';
+}) {
+  // - Busca artigos com status='published'
+  // - Ordena por published_at DESC
+  // - Suporta filtro por categoria
+  // - Suporta paginacao infinita
+  // - Retorna { articles, isLoading, hasMore, loadMore }
+}
+
+export function useArticle(id: string) {
+  // - Busca artigo individual por ID
+  // - Retorna { article, isLoading, error }
+}
+
+export function useLatestArticles(count: number) {
+  // - Busca ultimos N artigos para slider
+  // - Filtro opcional por highlight_type
 }
 ```
 
-**Nova funcao interna `rewriteArticle`:**
+### Fase 2: Corrigir Upload de Imagens
+
+**Modificar `src/admin/components/editor/PublishPanel.tsx`**
+
 ```typescript
-async function rewriteArticle(
-  supabase: any, 
-  articleId: string, 
-  originalTitle: string, 
-  originalContent: string
-) {
-  // 1. Chamar Lovable AI Gateway com prompt "journalistic"
-  const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'google/gemini-3-flash-preview',
-      messages: [
-        { role: 'system', content: JOURNALISTIC_PROMPT },
-        { role: 'user', content: `TÍTULO: ${originalTitle}\n\nCONTEÚDO: ${originalContent}` },
-      ],
-      temperature: 0.7,
-    }),
+// ANTES - URLs temporarias (perdem-se)
+onUpdate({ image_url: URL.createObjectURL(file) });
+
+// DEPOIS - Upload para Supabase Storage
+const { data } = await supabase.storage
+  .from('article-images')
+  .upload(`${articleId}/${file.name}`, file);
+
+const publicUrl = supabase.storage
+  .from('article-images')
+  .getPublicUrl(data.path).data.publicUrl;
+
+onUpdate({ image_url: publicUrl });
+```
+
+### Fase 3: Actualizar Componentes do Frontend
+
+**1. NewsFeed.tsx**
+
+```typescript
+// ANTES
+import { articles } from '@/data/articles';
+
+// DEPOIS  
+import { usePublishedArticles } from '@/hooks/usePublishedArticles';
+
+export function NewsFeed({ categoryFilter }) {
+  const { articles, isLoading, hasMore, loadMore } = usePublishedArticles({
+    category: categoryFilter,
+    limit: 10,
   });
-
-  // 2. Parsear resposta JSON da IA
-  const { title, lead, content } = parseAIResponse(aiResponse);
-
-  // 3. Actualizar artigo na base de dados
-  await supabase
-    .from('articles')
-    .update({
-      title: title,           // Titulo reformulado
-      lead: lead,             // Lead gerado
-      content: content,       // Conteudo reformulado
-      status: 'rewritten',    // JA REFORMULADO!
-    })
-    .eq('id', articleId);
+  // ... renderizar artigos da base de dados
 }
 ```
 
-### 2. Logs de Monitoramento
+**2. HeroChat.tsx**
 
-Adicionar novas accoes de log:
-- `ai_auto_rewrite` - Inicio da reformulacao automatica
-- `ai_auto_complete` - Reformulacao concluida
-- `ai_auto_error` - Erro na reformulacao (artigo fica como `captured`)
-
-### 3. Tratamento de Erros
-
-Se a reformulacao falhar (rate limit, erro de IA):
-- Artigo permanece com status `captured`
-- Log de erro e registado
-- Usuario pode reformular manualmente no editor
-
-### 4. Opcao de Configuracao (Opcional)
-
-Adicionar toggle na pagina AgentPage para activar/desactivar reformulacao automatica:
 ```typescript
-[x] Reformular automaticamente com tom jornalistico
+// ANTES
+import { getLatestArticles } from '@/data/articles';
+const latestArticles = getLatestArticles(3);
+
+// DEPOIS
+import { useLatestArticles } from '@/hooks/usePublishedArticles';
+const { articles: latestArticles, isLoading } = useLatestArticles(4);
 ```
 
----
+**3. ArticlePage.tsx**
 
-## Ficheiros a Modificar
+```typescript
+// ANTES
+import { getArticleById } from '@/data/articles';
+const article = getArticleById(id);
 
-| Ficheiro | Alteracao |
-|----------|-----------|
-| `supabase/functions/news-agent/index.ts` | Adicionar funcao `rewriteArticle` e integrar no loop de artigos |
-| `src/admin/pages/AgentPage.tsx` | (Opcional) Adicionar toggle para activar reformulacao automatica |
-| `src/admin/types/admin.ts` | Adicionar novos tipos de log |
+// DEPOIS
+import { useArticle } from '@/hooks/usePublishedArticles';
+const { article, isLoading, error } = useArticle(id);
+```
 
----
+### Fase 4: Tipo Article Unificado
 
-## Prompt de Tom Jornalistico (Reutilizado)
+**Criar `src/types/article.ts`** (ou actualizar `news.ts`)
 
-O prompt ja existe na funcao `rewrite-article`:
+```typescript
+import { Tables } from '@/integrations/supabase/types';
 
-```text
-Es um jornalista senior do B NEWS com decadas de experiencia.
+// Tipo derivado directamente da base de dados
+export type PublishedArticle = Tables<'articles'>;
 
-INSTRUCOES:
-- Reescreve o texto com tom jornalistico formal e profissional
-- Usa a estrutura da piramide invertida (mais importante primeiro)
-- Escreve em portugues de Mocambique (pt-MZ)
-- Adiciona contexto quando necessario sem inventar factos
-- Usa citacoes directas se existirem no original
-- Linguagem neutra e objectiva
-
-FORMATO DE RESPOSTA (JSON):
-{
-  "title": "Titulo noticioso formal",
-  "lead": "Lead jornalistico respondendo as perguntas essenciais",
-  "content": "Texto em estilo jornalistico profissional"
+// Adaptador para manter compatibilidade com componentes existentes
+export function adaptArticle(dbArticle: PublishedArticle): Article {
+  return {
+    id: dbArticle.id,
+    title: dbArticle.title || '',
+    summary: dbArticle.lead || '',
+    content: dbArticle.content || '',
+    category: (dbArticle.category || 'sociedade') as CategoryId,
+    imageUrl: dbArticle.image_url || undefined,
+    publishedAt: dbArticle.published_at || '',
+    readingTime: dbArticle.reading_time || 3,
+    author: dbArticle.author || 'Redaccao B NEWS',
+    quickFacts: dbArticle.quick_facts || [],
+    relatedArticleIds: [], // Calculado separadamente
+    tags: dbArticle.tags || [],
+  };
 }
 ```
 
 ---
 
-## Consideracoes de Performance
+## Ficheiros a Criar/Modificar
 
-1. **Rate Limits**: O Lovable AI tem limites de pedidos/minuto. Para evitar bloqueios:
-   - Processar artigos sequencialmente (nao em paralelo)
-   - Adicionar pequeno delay entre reformulacoes (500ms-1s)
-   - Se houver rate limit (429), parar e continuar na proxima execucao
-
-2. **Timeout do Edge Function**: Edge functions tem timeout de ~60s. Se houver muitos artigos:
-   - Limitar a 5-10 reformulacoes por execucao
-   - Artigos restantes serao reformulados na proxima execucao
-
-3. **Custos**: Cada reformulacao usa creditos de IA. Considerar:
-   - Apenas reformular artigos com conteudo suficiente (>100 caracteres)
-   - Nao reformular artigos duplicados
+| Ficheiro | Accao | Descricao |
+|----------|-------|-----------|
+| `src/hooks/usePublishedArticles.ts` | CRIAR | Hooks para artigos publicados |
+| `src/components/news/NewsFeed.tsx` | MODIFICAR | Usar hook em vez de mock |
+| `src/components/news/HeroChat.tsx` | MODIFICAR | Usar hook para slider |
+| `src/pages/ArticlePage.tsx` | MODIFICAR | Buscar artigo do Supabase |
+| `src/admin/components/editor/PublishPanel.tsx` | MODIFICAR | Upload de imagens para Storage |
+| `src/types/article.ts` | CRIAR | Tipos unificados e adaptador |
 
 ---
 
-## Resultado Final
+## Logica de Destaques no Feed
+
+Artigos recentes/importantes aparecem primeiro:
+
+```typescript
+// Query para NewsFeed
+const { data } = await supabase
+  .from('articles')
+  .select('*')
+  .eq('status', 'published')
+  .order('highlight_type', { ascending: true }) // hero primeiro
+  .order('published_at', { ascending: false })
+  .limit(limit);
+```
+
+Para o slider do Hero:
+
+```typescript
+// Ultimos 4 artigos OU artigos marcados como "hero"
+const { data } = await supabase
+  .from('articles')
+  .select('*')
+  .eq('status', 'published')
+  .or('highlight_type.eq.hero,published_at.gte.' + last24h)
+  .order('published_at', { ascending: false })
+  .limit(4);
+```
+
+---
+
+## Resultado Esperado
 
 Apos implementacao:
 
-| Antes | Depois |
-|-------|--------|
-| Agente captura artigos crus | Agente captura E reformula automaticamente |
-| Usuario clica "Reformular" manualmente | Artigos ja chegam reformulados |
-| Workflow: Captura → Manual → Editar → Publicar | Workflow: Captura+Reformula → Editar(opcional) → Publicar |
-| 4-5 passos manuais | 2-3 passos manuais |
+1. **Publicar artigo no CRM** → Aparece imediatamente no site
+2. **Slider do Hero** → Mostra ultimas 4 noticias publicadas
+3. **Feed principal** → Artigos ordenados por data/destaque
+4. **Imagens persistem** → Upload para Storage com URLs permanentes
+5. **Dados mock eliminados** → `src/data/articles.ts` pode ser removido
 
 ---
 
-## Seguranca e Fallback
+## Consideracoes Tecnicas
 
-- Se LOVABLE_API_KEY nao estiver configurada, agente continua a funcionar sem reformulacao
-- Se reformulacao falhar, artigo fica como `captured` e pode ser reformulado manualmente
-- Logs detalhados permitem monitorar o processo
+### RLS (Row Level Security)
+A politica `articles_public_published` ja existe e permite:
+- Utilizadores anonimos podem ler artigos com `status='published'`
+- Nao e necessaria autenticacao para ver o site publico
+
+### Performance
+- Usar React Query (`@tanstack/react-query`) para cache e deduplicacao
+- Implementar paginacao para evitar carregar todos os artigos
+- Prefetch de artigos ao hover para navegacao mais rapida
+
+### Fallback Gracioso
+- Se nao houver artigos publicados, mostrar mensagem amigavel
+- Se imagem falhar, usar placeholder padrao
 
