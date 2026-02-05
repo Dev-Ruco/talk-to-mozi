@@ -7,7 +7,8 @@ const corsHeaders = {
 };
 
 interface ChatRequest {
-  question: string;
+  action?: 'chat' | 'generate_suggestions';
+  question?: string;
   article_id?: string;
   conversation_history?: Array<{ role: string; content: string }>;
 }
@@ -29,8 +30,133 @@ serve(async (req) => {
   }
 
   try {
-    const { question, article_id, conversation_history = [] }: ChatRequest = await req.json();
+    const requestData: ChatRequest = await req.json();
+    const { action = 'chat', question, article_id, conversation_history = [] } = requestData;
 
+    // Initialize Supabase client with service role for full access
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Handle generate_suggestions action
+    if (action === 'generate_suggestions') {
+      console.log(`[chat] Generating suggestions for article: ${article_id || 'global'}`);
+      
+      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+      if (!LOVABLE_API_KEY) {
+        // Return default suggestions if AI not available
+        return new Response(
+          JSON.stringify({
+            suggestions: [
+              "Explica isto de forma simples",
+              "Qual o impacto disto?",
+              "Quem ganha e quem perde?",
+              "Isto já aconteceu antes?",
+            ]
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (article_id) {
+        // Fetch the specific article
+        const { data: article, error } = await supabase
+          .from("articles")
+          .select("id, title, lead, content, category, tags")
+          .eq("id", article_id)
+          .eq("status", "published")
+          .single();
+
+        if (error || !article) {
+          console.error("[chat] Error fetching article for suggestions:", error);
+          return new Response(
+            JSON.stringify({
+              suggestions: [
+                "Explica isto de forma simples",
+                "Qual o impacto disto?",
+                "Quem ganha e quem perde?",
+                "Isto já aconteceu antes?",
+              ]
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Generate contextual suggestions using AI
+        const suggestionPrompt = `Analisa este artigo de notícias e gera exactamente 4 perguntas curtas e específicas que um leitor moçambicano gostaria de fazer sobre ESTE artigo específico.
+
+ARTIGO:
+Título: ${article.title}
+Resumo: ${article.lead}
+Categoria: ${article.category}
+Conteúdo: ${article.content?.substring(0, 1500) || ''}
+
+REGRAS:
+1. As perguntas devem ser ESPECÍFICAS a este artigo (mencionar entidades, nomes, lugares do artigo)
+2. Usar português de Moçambique (pt-MZ)
+3. Perguntas curtas (máximo 8 palavras cada)
+4. Variar os tipos: uma sobre explicação simples, uma sobre impacto, uma sobre contexto histórico, uma sobre consequências práticas
+5. NÃO usar perguntas genéricas como "Qual o impacto?"
+
+Responde APENAS com um JSON array de 4 strings:
+["pergunta 1", "pergunta 2", "pergunta 3", "pergunta 4"]`;
+
+        try {
+          const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-flash",
+              messages: [{ role: "user", content: suggestionPrompt }],
+              temperature: 0.8,
+              max_tokens: 300,
+            }),
+          });
+
+          if (aiResponse.ok) {
+            const aiData = await aiResponse.json();
+            const content = aiData.choices?.[0]?.message?.content || "";
+            
+            // Parse JSON from response
+            const jsonMatch = content.match(/\[[\s\S]*?\]/);
+            if (jsonMatch) {
+              try {
+                const suggestions = JSON.parse(jsonMatch[0]);
+                if (Array.isArray(suggestions) && suggestions.length >= 2) {
+                  console.log("[chat] Generated contextual suggestions:", suggestions);
+                  return new Response(
+                    JSON.stringify({ suggestions: suggestions.slice(0, 4) }),
+                    { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                  );
+                }
+              } catch {
+                console.error("[chat] Failed to parse suggestions JSON");
+              }
+            }
+          }
+        } catch (aiError) {
+          console.error("[chat] AI error generating suggestions:", aiError);
+        }
+      }
+
+      // Fallback suggestions
+      return new Response(
+        JSON.stringify({
+          suggestions: [
+            "Explica isto de forma simples",
+            "Qual o impacto para Moçambique?",
+            "Quem são os principais envolvidos?",
+            "O que acontece a seguir?",
+          ]
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Original chat functionality
     if (!question?.trim()) {
       return new Response(
         JSON.stringify({ error: "Pergunta é obrigatória" }),
@@ -39,11 +165,6 @@ serve(async (req) => {
     }
 
     console.log(`[chat] Processing question: "${question.substring(0, 50)}..." article_id: ${article_id || 'global'}`);
-
-    // Initialize Supabase client with service role for full access
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Fetch articles based on context
     let articles: Article[] = [];
@@ -108,7 +229,7 @@ serve(async (req) => {
     // Build context from articles
     const articlesContext = articles.map((article, index) => {
       const quickFactsText = article.quick_facts?.length 
-        ? `\nFACTOS RÁPIDOS:\n${article.quick_facts.map(f => `- ${f}`).join('\n')}`
+        ? `\nFACTOS RÁPIDOS:\n${article.quick_facts.map((f: string) => `- ${f}`).join('\n')}`
         : '';
       
       return `

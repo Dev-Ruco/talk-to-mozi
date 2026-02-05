@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.chat]
 verify_jwt = false
+
+[functions.trending-topics]
+verify_jwt = false
