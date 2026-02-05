@@ -1,155 +1,150 @@
 
-# Plano: Preparar Dashboard para Uso Real
+# Auditoria Completa: Problemas de Acesso no CRM
 
-## Situacao Atual
-
-| Item | Estado |
-|------|--------|
-| Base de dados | Vazia (0 fontes, 0 artigos) |
-| Edge function news-agent | Criada mas sem testes |
-| Lovable AI | Disponivel (LOVABLE_API_KEY configurada) |
-| Monitoramento de etapas | Basico (apenas logs finais) |
+Apos uma analise detalhada do codigo, base de dados e configuracao de autenticacao, identifiquei os seguintes problemas que impedem as paginas do dashboard de abrirem correctamente.
 
 ---
 
-## O Que Vamos Implementar
+## Problema Principal Identificado
 
-### 1. Seed de Fontes RSS Reais (Mocambique e CPLP)
+### O `AdminLayout` retorna `null` silenciosamente quando `isAuthenticated` e `false`
 
-Vou inserir fontes RSS activas para captar noticias reais:
-
-| Fonte | URL RSS | Categoria |
-|-------|---------|-----------|
-| Jornal Noticias | https://jornalnoticias.co.mz/feed/ | Nacional |
-| Verdade | https://verdade.co.mz/feed/ | Nacional |
-| O Pais | https://opais.co.mz/feed/ | Nacional |
-| Club of Mozambique | https://clubofmozambique.com/feed/ | Nacional |
-| Lusa (PT) | https://www.lusa.pt/rss/pais | Internacional |
-| RTP Africa | https://www.rtp.pt/noticias/rss/africa | Africa |
-| DW Africa | https://rss.dw.com/xml/rss-pt-africa | Africa |
-
-### 2. Sistema de Logs Detalhados em Tempo Real
-
-Actualizar a edge function e a tabela agent_logs para registar CADA etapa:
-
-**Novas accoes a registar:**
-```text
-fetch_start      - Inicio de fetch da fonte
-fetch_complete   - Fetch concluido com sucesso
-parse_rss        - A analisar XML
-duplicate_check  - A verificar duplicados
-article_save     - Artigo guardado
-ai_rewrite       - Reescrita IA iniciada
-ai_complete      - Reescrita IA concluida
-```
-
-**Nova coluna na tabela agent_logs:**
-```sql
-details JSONB - Para guardar metadados de cada etapa
-```
-
-### 3. AgentPage com Actualizacao em Tempo Real
-
-Implementar Supabase Realtime para ver logs a aparecer enquanto o agente executa:
-
+**Codigo actual em `AdminLayout.tsx` (linhas 35-37):**
 ```typescript
-// Subscrever a novos logs
-supabase
-  .channel('agent_logs')
-  .on('postgres_changes', { event: 'INSERT', table: 'agent_logs' }, (payload) => {
-    // Adicionar log a lista em tempo real
-  })
-  .subscribe();
+if (!isAuthenticated) {
+  return null;  // <-- PROBLEMA: Nao mostra nada nem redireciona
+}
 ```
 
-### 4. Integracao Lovable AI para Reformulacao
+**Como `isAuthenticated` e calculado em `useAdminAuth.ts` (linha 98):**
+```typescript
+isAuthenticated: !!session && !!role
+```
 
-Criar edge function `rewrite-article` que:
-- Recebe artigo original
-- Chama Lovable AI Gateway (google/gemini-3-flash-preview)
-- Retorna titulo e conteudo reformulados em portugues de Mocambique
-
-**Accoes disponiveis no ContentPanel:**
-- **Reformular**: Reescreve mantendo informacao
-- **Encurtar**: Resume para 2-3 paragrafos
-- **Tom Jornalistico**: Ajusta para estilo noticioso formal
+**Isto significa que:**
+1. Se o utilizador tem sessao mas NAO tem role na tabela `user_roles` → `isAuthenticated = false`
+2. Se a sessao expirou → `isAuthenticated = false`
+3. Resultado: A pagina aparece em branco ou fica a carregar infinitamente
 
 ---
 
-## Ficheiros a Criar
+## Problemas Secundarios
 
-```text
-supabase/functions/rewrite-article/index.ts    # Edge function para IA
+### 1. Timing Problem no `useEffect`
+
+O `useEffect` em `AdminLayout` so redireciona UMA vez quando `isLoading` passa a `false`. Se houver um problema posterior, o utilizador fica preso.
+
+### 2. Falta de Feedback Visual
+
+Nao ha mensagem de erro quando:
+- O utilizador nao tem role
+- A sessao expirou
+- A query ao `user_roles` falha
+
+### 3. RLS Policy no `user_roles`
+
+A policy `user_roles_select_own_or_admin` permite que um utilizador veja apenas o seu proprio role:
+```sql
+((user_id = auth.uid()) OR has_role(auth.uid(), 'admin'::app_role))
 ```
+
+Isto esta correcto, mas se a query falhar por outro motivo, o sistema falha silenciosamente.
+
+---
+
+## Estado Actual da Base de Dados
+
+| Tabela | Registos |
+|--------|----------|
+| `articles` | 25 (todos em status `captured`) |
+| `sources` | 5 fontes activas |
+| `user_roles` | 1 admin registado |
+
+**Nota:** Se o utilizador que reporta o problema nao e o admin registado, ele nao conseguira aceder.
+
+---
+
+## Plano de Correccoes
+
+### Correccao 1: Melhorar o Tratamento de Erros no AdminLayout
+
+Modificar `src/admin/components/layout/AdminLayout.tsx`:
+- Adicionar estado de erro quando a autenticacao falha
+- Mostrar mensagem amigavel em vez de pagina em branco
+- Forcar redirect para login quando nao autenticado
+
+**Antes:**
+```typescript
+if (!isAuthenticated) {
+  return null;
+}
+```
+
+**Depois:**
+```typescript
+if (!isAuthenticated) {
+  return (
+    <div className="flex h-screen items-center justify-center">
+      <div className="text-center">
+        <p className="text-muted-foreground">Sessao expirada ou sem permissoes</p>
+        <Button onClick={() => navigate('/admin/login')}>
+          Iniciar sessao
+        </Button>
+      </div>
+    </div>
+  );
+}
+```
+
+### Correccao 2: Melhorar o useAdminAuth com Debug
+
+Modificar `src/admin/hooks/useAdminAuth.ts`:
+- Adicionar logs de debug para identificar problemas
+- Adicionar estado de erro explicito
+- Retornar razao da falha de autenticacao
+
+### Correccao 3: Adicionar Pagina de Forbidden
+
+Criar componente para quando utilizador esta autenticado mas nao tem role adequado para a pagina.
+
+### Correccao 4: Proteger Rotas Individuais
+
+Cada pagina do pipeline deve verificar o role do utilizador e mostrar mensagem adequada se nao tiver acesso.
+
+---
 
 ## Ficheiros a Modificar
 
 ```text
-supabase/functions/news-agent/index.ts         # Logs detalhados por etapa
-supabase/config.toml                           # Adicionar nova function
-src/admin/pages/AgentPage.tsx                  # Realtime logs + detalhes
-src/admin/components/editor/ContentPanel.tsx   # Chamar edge function IA
-src/admin/types/admin.ts                       # Adicionar campo details ao AgentLog
-```
-
-## Migracao SQL
-
-```sql
--- Adicionar coluna details aos logs
-ALTER TABLE agent_logs ADD COLUMN details JSONB;
-
--- Habilitar realtime na tabela
-ALTER PUBLICATION supabase_realtime ADD TABLE agent_logs;
+src/admin/components/layout/AdminLayout.tsx    # Melhorar fallback
+src/admin/hooks/useAdminAuth.ts                # Adicionar debug e error state
+src/admin/components/layout/ForbiddenPage.tsx  # NOVO - pagina de acesso negado
 ```
 
 ---
 
-## Detalhes Tecnicos
+## Verificacoes Adicionais Recomendadas
 
-### Edge Function: rewrite-article
-
-```typescript
-// Recebe: { article_id, action: 'rewrite' | 'shorten' | 'journalistic' }
-// Chama: https://ai.gateway.lovable.dev/v1/chat/completions
-// Modelo: google/gemini-3-flash-preview
-// Retorna: { title, lead, content }
-```
-
-### Prompt do Sistema para IA
-
-```text
-Es um editor de noticias do B NEWS, um portal de Mocambique.
-Escreve em portugues de Mocambique (pt-MZ).
-Mantem factos exactos, nunca inventes informacao.
-```
-
-### Logs em Tempo Real
-
-A interface mostrara:
-- Estado actual (A processar fonte X...)
-- Timeline de accoes com timestamps
-- Erros em destaque vermelho
-- Botao para expandir detalhes JSON
+1. **Verificar se o utilizador tem role:** Confirmar que existe registo na tabela `user_roles` para o email do utilizador
+2. **Verificar sessao activa:** O token JWT pode ter expirado
+3. **Verificar consola do browser:** Pode haver erros de RLS nao vistos
 
 ---
 
-## Sequencia de Implementacao
+## Resumo Executivo
 
-1. Executar migracao SQL (details + realtime)
-2. Actualizar news-agent com logs detalhados
-3. Criar rewrite-article edge function
-4. Actualizar AgentPage com realtime
-5. Ligar ContentPanel a edge function
-6. Inserir fontes RSS de teste via script
-7. Testar fluxo completo
+| Problema | Causa | Solucao |
+|----------|-------|---------|
+| Paginas em branco | `AdminLayout` retorna `null` | Mostrar feedback visual |
+| Sem redirect | `useEffect` timing | Melhorar logica de redirect |
+| Role nao detectado | Query pode falhar | Adicionar error handling |
+| Sem feedback | Nao ha UI de erro | Criar pagina de erro/forbidden |
 
 ---
 
-## Resultado Final
+## Accoes Imediatas
 
-Apos implementacao, poderas:
-- Ver fontes RSS a serem processadas em tempo real
-- Acompanhar cada artigo a ser captado
-- Detectar erros imediatamente
-- Reformular artigos com IA com um clique
-- Ter noticias reais de Mocambique no sistema
+1. Modificar `AdminLayout` para mostrar feedback quando autenticacao falha
+2. Adicionar logs de debug no hook de autenticacao
+3. Verificar se utilizador tem role atribuido na base de dados
+4. Criar UI para estados de erro e acesso negado
