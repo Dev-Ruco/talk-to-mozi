@@ -14,6 +14,9 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { Source, ArticleStatus, STATUS_LABELS } from '../../types/admin';
 
+// Constante para representar "todos" - Radix Select não suporta value=""
+const ALL_VALUE = "__all__";
+
 interface ArticleFiltersProps {
   onFilterChange: (filters: ArticleFiltersState) => void;
   showStatusFilter?: boolean;
@@ -72,7 +75,9 @@ export function ArticleFilters({
   };
 
   const updateFilter = (key: keyof ArticleFiltersState, value: any) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    // Converter __all__ para string vazia (que representa "todos" na lógica de filtros)
+    const actualValue = value === ALL_VALUE ? '' : value;
+    setFilters(prev => ({ ...prev, [key]: actualValue }));
   };
 
   const clearFilters = () => {
@@ -102,12 +107,12 @@ export function ArticleFilters({
       </div>
 
       {/* Source Filter */}
-      <Select value={filters.sourceId} onValueChange={(v) => updateFilter('sourceId', v)}>
+      <Select value={filters.sourceId || ALL_VALUE} onValueChange={(v) => updateFilter('sourceId', v)}>
         <SelectTrigger className="w-40">
           <SelectValue placeholder="Fonte" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="">Todas as fontes</SelectItem>
+          <SelectItem value={ALL_VALUE}>Todas as fontes</SelectItem>
           {sources.map((source) => (
             <SelectItem key={source.id} value={source.id}>
               {source.name}
@@ -117,12 +122,12 @@ export function ArticleFilters({
       </Select>
 
       {/* Category Filter */}
-      <Select value={filters.category} onValueChange={(v) => updateFilter('category', v)}>
+      <Select value={filters.category || ALL_VALUE} onValueChange={(v) => updateFilter('category', v)}>
         <SelectTrigger className="w-40">
           <SelectValue placeholder="Categoria" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="">Todas as categorias</SelectItem>
+          <SelectItem value={ALL_VALUE}>Todas as categorias</SelectItem>
           {CATEGORIES.map((cat) => (
             <SelectItem key={cat} value={cat}>
               {cat}
@@ -133,12 +138,12 @@ export function ArticleFilters({
 
       {/* Status Filter (optional) */}
       {showStatusFilter && statusOptions.length > 0 && (
-        <Select value={filters.status} onValueChange={(v) => updateFilter('status', v)}>
+        <Select value={filters.status || ALL_VALUE} onValueChange={(v) => updateFilter('status', v)}>
           <SelectTrigger className="w-40">
             <SelectValue placeholder="Estado" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Todos os estados</SelectItem>
+            <SelectItem value={ALL_VALUE}>Todos os estados</SelectItem>
             {statusOptions.map((status) => (
               <SelectItem key={status} value={status}>
                 {STATUS_LABELS[status]}
