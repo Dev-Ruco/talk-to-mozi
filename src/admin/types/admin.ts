@@ -93,12 +93,15 @@ export interface AgentLogDetails {
   total_found?: number;
   total_saved?: number;
   total_duplicates?: number;
+  total_rewritten?: number;
+  rewrite_errors?: number;
   errors_count?: number;
   action_type?: string;
   title_preview?: string;
   tokens_used?: number;
   timestamp?: string;
   source_filter?: string;
+  auto_rewrite?: boolean;
 }
 
 export interface AgentLog {
