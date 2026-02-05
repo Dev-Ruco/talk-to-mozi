@@ -1,151 +1,395 @@
 
-# Expandir Carousel e Melhorar Proporções dos Cards
+# Auditoria: Relação Chat ↔ Artigos Publicados
 
-## Problema Identificado
+## Resumo Executivo
 
-Olhando para o screenshot:
-- O carousel está limitado a `max-w-2xl` (672px) no container do Hero
-- Os cards têm altura fixa de `h-48` (192px) com proporção quase quadrada
-- Há muito espaço vazio à direita que não está a ser aproveitado
-- A sidebar esquerda tem `w-56` (224px)
+A auditoria identificou **3 falhas críticas** que impedem o chat de funcionar como um agente de conhecimento baseado nos artigos publicados. Actualmente, o sistema utiliza **dados mock estáticos** em vez da base de dados real.
 
-## Cálculo do Espaço Disponível
+---
 
-```text
-Container max: 1400px (definido no tailwind)
-Sidebar: 224px
-Gap: 24px
-────────────────
-Espaço para conteúdo: ~1152px
+## Estado Actual: Problema Crítico
 
-Actualmente usado: 672px (max-w-2xl)
-Espaço desperdiçado: ~480px
-```
-
-## Solução Proposta
-
-### 1. Expandir o Container do Hero
-
-**Antes:** `max-w-2xl` (672px)
-**Depois:** `max-w-5xl` (1024px) ou `max-w-4xl` (896px)
-
-Isto permite que o carousel ocupe mais espaço horizontal, com cards mais rectangulares.
-
-### 2. Ajustar Proporção dos Cards
-
-**Antes:** `h-48` (192px) - cards mais quadrados
-**Depois:** `h-44` ou `h-40` (176px/160px) - cards mais rectangulares/panorâmicos
-
-Com 3 cards mais largos e ligeiramente menos altos, obtemos um visual mais cinematográfico.
-
-### 3. Manter Centralização do Título e Input
-
-O título e o campo de pesquisa mantêm-se com `max-w-2xl` para boa legibilidade, apenas o carousel expande:
+### Arquitectura Actual (Quebrada)
 
 ```text
-┌─────────────────────────────────────────────────────────┐
-│                                                          │
-│        O que aconteceu hoje em Moçambique?              │ ← max-w-2xl (centrado)
-│        [  Campo de pesquisa               ]             │ ← max-w-2xl (centrado)
-│                                                          │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐                 │
-│  │  Card 1  │ │  Card 2  │ │  Card 3  │                 │ ← max-w-5xl (expandido)
-│  │ (16:10)  │ │ (16:10)  │ │ (16:10)  │                 │
-│  └──────────┘ └──────────┘ └──────────┘                 │
-│                                                          │
-└─────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│                         FRONTEND                                            │
+│                                                                              │
+│  ┌──────────────────────┐      ┌──────────────────────┐                     │
+│  │   ArticleChat.tsx    │      │     ChatPage.tsx     │                     │
+│  │   (Chat na notícia)  │      │   (Pesquisa global)  │                     │
+│  └──────────┬───────────┘      └──────────┬───────────┘                     │
+│             │                             │                                  │
+│             ▼                             ▼                                  │
+│  ┌──────────────────────┐      ┌──────────────────────┐                     │
+│  │  generateMockResponse │     │   searchArticles()   │ ◄─── PROBLEMA!     │
+│  │  (Respostas fixas)    │     │   (Dados estáticos)  │                     │
+│  └──────────────────────┘      └──────────────────────┘                     │
+│             │                             │                                  │
+│             ▼                             ▼                                  │
+│       ❌ NÃO USA IA              ❌ USA src/data/articles.ts                │
+│       ❌ NÃO CONSULTA BD            (17 artigos MOCK fixos)                 │
+│                                                                              │
+└────────────────────────────────────────────────────────────────────────────┘
+
+                    ⛔ DESCONECTADO DA BASE DE DADOS ⛔
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│                         SUPABASE                                            │
+│                                                                              │
+│      ┌───────────────────────────────────────────────────────────────┐      │
+│      │                    Tabela: articles                            │      │
+│      │   • 4 artigos publicados (REAIS)                               │      │
+│      │   • Campos: title, lead, content, quick_facts, tags, category  │      │
+│      │   • 23 artigos captured (aguardando)                           │      │
+│      └───────────────────────────────────────────────────────────────┘      │
+│                                                                              │
+│      ┌───────────────────────────────────────────────────────────────┐      │
+│      │  Hook: usePublishedArticles ✓                                  │      │
+│      │  (Existe e funciona - usado no feed e hero)                    │      │
+│      │  MAS NÃO É USADO NO CHAT!                                      │      │
+│      └───────────────────────────────────────────────────────────────┘      │
+│                                                                              │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Alterações Técnicas
+## Falhas Identificadas
 
-### Ficheiro: `src/components/news/HeroChat.tsx`
+### Falha #1: ChatPage.tsx Usa Dados Mock
 
-**Linha 54-55 - Container principal:**
-```tsx
-// Antes:
-<motion.div className="w-full max-w-2xl space-y-8 text-center">
+| Aspecto | Problema |
+|---------|----------|
+| **Ficheiro** | `src/pages/ChatPage.tsx` |
+| **Linha 8** | `import { searchArticles, getLatestArticles } from '@/data/articles';` |
+| **Linha 27** | `const latestArticles = useMemo(() => getLatestArticles(4), []);` |
+| **Linha 60** | `const relatedArticles = searchArticles(text);` |
+| **Impacto** | Pesquisa em 17 artigos mock fixos, ignora os 4 artigos reais publicados |
 
-// Depois:
-<motion.div className="w-full max-w-5xl space-y-8 text-center">
+**Dados Mock vs Reais:**
+| Fonte | Quantidade | Status |
+|-------|------------|--------|
+| `src/data/articles.ts` | 17 artigos | Ficção/Mock |
+| Supabase `articles` (published) | 4 artigos | Reais |
+
+---
+
+### Falha #2: ArticleChat.tsx Não Usa IA Real
+
+| Aspecto | Problema |
+|---------|----------|
+| **Ficheiro** | `src/components/news/ArticleChat.tsx` |
+| **Linhas 33-54** | Função `generateMockResponse()` com respostas fixas |
+| **Linhas 71-72** | `await new Promise(resolve => setTimeout(...))` - Simula delay falso |
+| **Impacto** | Respostas genéricas que ignoram o contexto real do artigo |
+
+**Exemplo de Resposta Mock (Linha 37):**
+```javascript
+return `Em resumo, ${article.summary.toLowerCase()} Esta é uma situação 
+importante para o país porque afecta directamente a vida das pessoas...`
 ```
 
-**Linha 62-70 - Título (manter centrado):**
-```tsx
-// Adicionar wrapper com max-w-2xl para título:
-<div className="mx-auto max-w-2xl space-y-3">
-  <motion.h1>...</motion.h1>
-</div>
-```
+Esta resposta é **genérica e fabricada**, não usa IA para analisar o artigo.
 
-**Linha 74-132 - Form (manter centrado):**
-```tsx
-// Adicionar wrapper com max-w-2xl para form:
-<motion.form className="mx-auto max-w-2xl space-y-4">
-```
+---
 
-**Linha 163 - Altura dos cards:**
-```tsx
-// Antes:
-className="group relative block h-48 w-full overflow-hidden rounded-xl"
+### Falha #3: Não Existe Edge Function de Chat
 
-// Depois:
-className="group relative block h-40 w-full overflow-hidden rounded-xl"
-```
+| Edge Functions Existentes | Propósito |
+|---------------------------|-----------|
+| `news-agent` | Captura notícias de fontes RSS |
+| `process-queue` | Processa fila de reformulação |
+| `rewrite-article` | Reformula artigos com IA |
+| **`chat` ❌** | NÃO EXISTE |
 
-**Linha 143-147 - Skeletons:**
-```tsx
-// Ajustar altura dos skeletons para h-40
-<Skeleton className="h-40 w-full shrink-0 rounded-xl md:w-1/2 lg:w-1/3" />
-```
+**Impacto:** Sem uma Edge Function dedicada, o chat não pode:
+- Consultar todos os artigos publicados
+- Enviar contexto à IA
+- Gerar respostas fundamentadas
 
-**Linha 189 - Sponsored card:**
-```tsx
-// Antes:
-<div className="h-48">
+---
 
-// Depois:
-<div className="h-40">
+## Arquitectura Proposta (Corrigida)
+
+```text
+┌────────────────────────────────────────────────────────────────────────────┐
+│                         FRONTEND                                            │
+│                                                                              │
+│  ┌──────────────────────┐      ┌──────────────────────┐                     │
+│  │   ArticleChat.tsx    │      │     ChatPage.tsx     │                     │
+│  │   (Chat na notícia)  │      │   (Pesquisa global)  │                     │
+│  └──────────┬───────────┘      └──────────┬───────────┘                     │
+│             │                             │                                  │
+│             ▼                             ▼                                  │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │                    supabase.functions.invoke('chat')                  │   │
+│  │                                                                        │   │
+│  │   Body: { question, article_id (opcional), conversation_history }      │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
+│                                     │                                        │
+└─────────────────────────────────────┼────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│                     SUPABASE EDGE FUNCTION: chat                            │
+│                                                                              │
+│   1. Recebe pergunta + contexto (article_id opcional)                        │
+│                                                                              │
+│   2. Consulta artigos publicados:                                            │
+│      ┌───────────────────────────────────────────────────────────────┐      │
+│      │  SELECT title, lead, content, quick_facts, category, tags      │      │
+│      │  FROM articles WHERE status = 'published'                       │      │
+│      │  ORDER BY published_at DESC LIMIT 50                           │      │
+│      └───────────────────────────────────────────────────────────────┘      │
+│                                                                              │
+│   3. Constrói contexto para IA:                                              │
+│      - Se article_id: foco no artigo específico                              │
+│      - Se pesquisa global: inclui todos os artigos relevantes               │
+│                                                                              │
+│   4. Chama Lovable AI Gateway (gemini-3-flash-preview):                      │
+│      ┌───────────────────────────────────────────────────────────────┐      │
+│      │  System: "És um assistente do B NEWS. Responde APENAS com     │      │
+│      │          base nos artigos fornecidos. Se não tiveres          │      │
+│      │          informação, diz que não encontraste notícias."       │      │
+│      │                                                                │      │
+│      │  User: "[Artigos publicados]\n\nPergunta: {question}"         │      │
+│      └───────────────────────────────────────────────────────────────┘      │
+│                                                                              │
+│   5. Retorna resposta + IDs de artigos relacionados                          │
+│                                                                              │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Resultado Visual Esperado
+## Plano de Correcção
 
-### Antes
-```text
-Sidebar │        ┌────────────────────┐      │ Espaço vazio
-   │    │        │  max-w-2xl (672px) │      │
-   │    │        │  [■■] [■■] [■■]    │      │  ← Cards quadrados
-   │    │        └────────────────────┘      │
-```
+### Ficheiros a Criar
 
-### Depois
-```text
-Sidebar │  ┌─────────────────────────────────────────┐  │
-   │    │  │         max-w-5xl (1024px)              │  │
-   │    │  │   [━━━━━━] [━━━━━━] [━━━━━━]            │  │  ← Cards rectangulares
-   │    │  └─────────────────────────────────────────┘  │
-```
-
----
-
-## Ficheiros a Modificar
-
-| Ficheiro | Alteração |
+| Ficheiro | Propósito |
 |----------|-----------|
-| `src/components/news/HeroChat.tsx` | Expandir container, ajustar alturas |
+| `supabase/functions/chat/index.ts` | Edge Function que processa perguntas com IA |
+
+### Ficheiros a Modificar
+
+| Ficheiro | Alterações |
+|----------|-----------|
+| `src/pages/ChatPage.tsx` | Substituir mock por chamada à Edge Function `chat` |
+| `src/components/news/ArticleChat.tsx` | Substituir mock por chamada à Edge Function `chat` |
+| `src/hooks/usePublishedArticles.ts` | Adicionar hook `useSearchArticles` para pesquisa textual |
 
 ---
 
-## Proporções Finais
+## Detalhes Técnicos
 
-| Elemento | Antes | Depois |
-|----------|-------|--------|
-| Container Hero | max-w-2xl (672px) | max-w-5xl (1024px) |
-| Título/Input | max-w-2xl | max-w-2xl (mantém) |
-| Altura cards | h-48 (192px) | h-40 (160px) |
-| Proporção card | ~1:1 (quadrado) | ~16:10 (rectangular) |
+### 1. Nova Edge Function: `supabase/functions/chat/index.ts`
 
-Os cards ficam mais cinematográficos e ocupam melhor o espaço disponível, mantendo a harmonia com o título e campo de pesquisa centralizados.
+**Funcionalidades:**
+- Recebe `question`, `article_id` (opcional), `conversation_history`
+- Consulta artigos publicados via Supabase Service Role
+- Filtra artigos relevantes por palavras-chave ou categoria
+- Envia contexto + pergunta ao Lovable AI Gateway
+- Retorna resposta + lista de `article_ids` relacionados
+
+**Prompt do Sistema:**
+```
+És um assistente inteligente do B NEWS, portal de notícias de Moçambique.
+
+REGRAS OBRIGATÓRIAS:
+1. Responde APENAS com base nos artigos que te forneço
+2. Se a informação não existir nos artigos, diz "Não encontrei notícias sobre esse tema"
+3. Usa português de Moçambique (pt-MZ)
+4. Cita factos específicos dos artigos quando relevante
+5. Sugere artigos relacionados pelo ID
+
+FORMATO DE RESPOSTA (JSON):
+{
+  "response": "Resposta em linguagem natural",
+  "related_article_ids": ["uuid1", "uuid2"],
+  "confidence": "high" | "medium" | "low"
+}
+```
+
+### 2. Modificação: `ChatPage.tsx`
+
+**Antes (Mock):**
+```tsx
+const relatedArticles = searchArticles(text);
+const response = generateMockResponse(text, relatedArticles);
+```
+
+**Depois (Real):**
+```tsx
+const { data, error } = await supabase.functions.invoke('chat', {
+  body: { 
+    question: text,
+    conversation_history: messages.map(m => ({ role: m.role, content: m.content }))
+  }
+});
+
+// Fetch artigos relacionados pelos IDs retornados
+const relatedArticles = await fetchArticlesByIds(data.related_article_ids);
+```
+
+### 3. Modificação: `ArticleChat.tsx`
+
+**Antes (Mock):**
+```tsx
+const assistantMessage = {
+  content: generateMockResponse(messageText),
+};
+```
+
+**Depois (Real):**
+```tsx
+const { data, error } = await supabase.functions.invoke('chat', {
+  body: { 
+    question: messageText,
+    article_id: article.id, // Foco neste artigo
+    conversation_history: messages
+  }
+});
+
+const assistantMessage = {
+  content: data.response,
+};
+```
+
+### 4. Novo Hook: `useSearchArticles`
+
+Adicionar ao `usePublishedArticles.ts`:
+
+```tsx
+export function useSearchArticles(query: string) {
+  return useQuery({
+    queryKey: ['search-articles', query],
+    queryFn: async () => {
+      if (!query.trim()) return [];
+      
+      const { data, error } = await supabase
+        .from('articles')
+        .select('*')
+        .eq('status', 'published')
+        .or(`title.ilike.%${query}%,lead.ilike.%${query}%,content.ilike.%${query}%`)
+        .order('published_at', { ascending: false })
+        .limit(10);
+      
+      if (error) throw error;
+      return (data || []).map(adaptArticle);
+    },
+    enabled: query.length >= 2,
+  });
+}
+```
+
+---
+
+## Fluxo de Dados Corrigido
+
+### Chat na Página do Artigo
+
+```text
+Utilizador: "Qual o impacto desta notícia?"
+                    │
+                    ▼
+┌─────────────────────────────────────────────────────┐
+│ Frontend: ArticleChat.tsx                            │
+│ supabase.functions.invoke('chat', {                  │
+│   question: "Qual o impacto desta notícia?",         │
+│   article_id: "b994a0db-9d7c-4e2c-941c-5349e87ea540" │
+│ })                                                   │
+└─────────────────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────────────────┐
+│ Edge Function: chat                                  │
+│                                                      │
+│ 1. Busca artigo específico:                          │
+│    "Banco de Moçambique confirma autenticidade..."   │
+│                                                      │
+│ 2. Constrói prompt:                                  │
+│    ARTIGO: [título, lead, conteúdo, quick_facts]     │
+│    PERGUNTA: Qual o impacto desta notícia?           │
+│                                                      │
+│ 3. Chama Lovable AI Gateway                          │
+└─────────────────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────────────────┐
+│ Resposta da IA (Contextualizada):                    │
+│                                                      │
+│ "A confirmação do Banco de Moçambique tem impacto    │
+│  directo na confiança do público na moeda nacional.  │
+│  Os cidadãos com notas sem número de série devem     │
+│  dirigir-se aos bancos para troca gratuita. O facto  │
+│  de o BdM reagir rapidamente demonstra transparência │
+│  da autoridade monetária."                           │
+│                                                      │
+│ Artigos relacionados: [id do artigo sobre economia]  │
+└─────────────────────────────────────────────────────┘
+```
+
+### Chat Global (Pesquisa)
+
+```text
+Utilizador: "O que aconteceu com os corredores logísticos?"
+                    │
+                    ▼
+┌─────────────────────────────────────────────────────┐
+│ Frontend: ChatPage.tsx                               │
+│ supabase.functions.invoke('chat', {                  │
+│   question: "O que aconteceu com os corredores..."   │
+│ })                                                   │
+└─────────────────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────────────────┐
+│ Edge Function: chat                                  │
+│                                                      │
+│ 1. Busca TODOS os artigos publicados (4 actuais)     │
+│                                                      │
+│ 2. Filtra por relevância (corredores, logística)     │
+│    → Encontra: "Corredores logísticos são activos    │
+│      estratégicos para Moçambique..."                │
+│                                                      │
+│ 3. Envia contexto completo à IA                      │
+└─────────────────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────────────────┐
+│ Resposta (Baseada em Artigo Real):                   │
+│                                                      │
+│ "O Primeiro-Ministro Adriano Maleiane defendeu que   │
+│  os portos e corredores logísticos são activos       │
+│  estratégicos para atrair investimentos, sobretudo   │
+│  nos sectores de energia e economia azul. Esta       │
+│  declaração foi feita na Cimeira Global de           │
+│  Investimento sobre África, no Dubai."               │
+│                                                      │
+│ related_article_ids: ["35a53aaa-0a78-4c8e-ba4f-..."] │
+└─────────────────────────────────────────────────────┘
+```
+
+---
+
+## Recursos Necessários
+
+| Recurso | Estado |
+|---------|--------|
+| Lovable AI Gateway | ✅ Disponível (LOVABLE_API_KEY configurado) |
+| Supabase Client | ✅ Configurado |
+| Artigos Publicados | ✅ 4 artigos na base de dados |
+| Edge Functions | ✅ Infraestrutura funcional |
+
+---
+
+## Resultado Esperado Após Correcções
+
+| Antes | Depois |
+|-------|--------|
+| Respostas genéricas/fabricadas | Respostas baseadas em artigos reais |
+| Pesquisa em 17 artigos mock | Pesquisa em artigos publicados (Supabase) |
+| Sem IA | Com IA via Lovable Gateway |
+| Chat não sabe nada | Chat conhece todas as notícias publicadas |
+| Dados desactualizados | Dados em tempo real |
