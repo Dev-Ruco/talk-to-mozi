@@ -52,13 +52,13 @@ export function HeroChat() {
   return (
     <section className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-8 md:min-h-[60vh] md:py-12">
       <motion.div 
-        className="w-full max-w-2xl space-y-8 text-center"
+        className="w-full max-w-5xl space-y-8 text-center"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
         {/* Main title */}
-        <div className="space-y-3">
+        <div className="mx-auto max-w-2xl space-y-3">
           <motion.h1 
             className="font-display text-3xl font-bold leading-tight md:text-4xl lg:text-5xl"
             initial={{ opacity: 0, y: 10 }}
@@ -73,7 +73,7 @@ export function HeroChat() {
         {/* Chat input */}
         <motion.form 
           onSubmit={handleSubmit} 
-          className="space-y-4"
+          className="mx-auto max-w-2xl space-y-4"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
@@ -141,9 +141,9 @@ export function HeroChat() {
           {isLoadingArticles ? (
             // Loading skeleton for carousel - 3 cards on desktop
             <div className="flex gap-4 overflow-hidden">
-              <Skeleton className="h-48 w-full shrink-0 rounded-xl md:w-1/2 lg:w-1/3" />
-              <Skeleton className="hidden h-48 w-1/2 shrink-0 rounded-xl md:block lg:w-1/3" />
-              <Skeleton className="hidden h-48 w-1/3 shrink-0 rounded-xl lg:block" />
+              <Skeleton className="h-40 w-full shrink-0 rounded-xl md:w-1/2 lg:w-1/3" />
+              <Skeleton className="hidden h-40 w-1/2 shrink-0 rounded-xl md:block lg:w-1/3" />
+              <Skeleton className="hidden h-40 w-1/3 shrink-0 rounded-xl lg:block" />
             </div>
           ) : carouselItems.length > 0 ? (
             <Carousel 
@@ -160,7 +160,7 @@ export function HeroChat() {
                     {item.type === 'article' ? (
                       <motion.button
                         onClick={() => handleArticleChat(item.data.id)}
-                        className="group relative block h-48 w-full overflow-hidden rounded-xl text-left"
+                        className="group relative block h-40 w-full overflow-hidden rounded-xl text-left"
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                       >
@@ -186,7 +186,7 @@ export function HeroChat() {
                         </div>
                       </motion.button>
                     ) : (
-                      <div className="h-48">
+                      <div className="h-40">
                         <SponsoredCard ad={item.data} variant="carousel" />
                       </div>
                     )}
