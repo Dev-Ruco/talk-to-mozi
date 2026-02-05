@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { cn } from '@/lib/utils';
+import { getValidImageUrl } from '@/lib/imageUtils';
 
 interface NewsCardProps {
   article: Article;
@@ -54,9 +55,12 @@ export function NewsCard({ article, isSaved, onToggleSave, variant = 'default' }
         className="group flex gap-3"
       >
         <img
-          src={article.imageUrl || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=200&h=200&fit=crop'}
+          src={getValidImageUrl(article.imageUrl)}
           alt={article.title}
           className="h-16 w-16 shrink-0 rounded-lg object-cover"
+          onError={(e) => {
+            e.currentTarget.src = '/placeholder.svg';
+          }}
         />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium leading-tight line-clamp-2 group-hover:text-primary transition-colors">
@@ -82,9 +86,12 @@ export function NewsCard({ article, isSaved, onToggleSave, variant = 'default' }
         className="group flex gap-4 py-4 border-b last:border-0"
       >
         <img
-          src={article.imageUrl || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=200&h=200&fit=crop'}
+          src={getValidImageUrl(article.imageUrl)}
           alt={article.title}
           className="h-20 w-20 shrink-0 rounded-lg object-cover"
+          onError={(e) => {
+            e.currentTarget.src = '/placeholder.svg';
+          }}
         />
         <div className="flex-1 min-w-0">
           <Badge 
@@ -125,9 +132,12 @@ export function NewsCard({ article, isSaved, onToggleSave, variant = 'default' }
         <Link to={`/artigo/${article.id}`}>
           <AspectRatio ratio={16 / 9}>
             <img
-              src={article.imageUrl || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&h=450&fit=crop'}
+              src={getValidImageUrl(article.imageUrl)}
               alt={article.title}
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+              onError={(e) => {
+                e.currentTarget.src = '/placeholder.svg';
+              }}
             />
           </AspectRatio>
         </Link>

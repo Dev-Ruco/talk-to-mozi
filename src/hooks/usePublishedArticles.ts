@@ -3,13 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
 import type { Article, CategoryId } from '@/types/news';
 
-export type PublishedArticle = Tables<'articles'>;
+import { getValidImageUrl } from '@/lib/imageUtils';
 
-// Default placeholder image for articles without images
-const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&h=400&fit=crop';
+export type PublishedArticle = Tables<'articles'>;
 
 /**
  * Adapts a database article to the frontend Article type
+ * Validates image URLs and uses placeholder for invalid ones
  */
 export function adaptArticle(dbArticle: PublishedArticle): Article {
   return {
@@ -18,7 +18,7 @@ export function adaptArticle(dbArticle: PublishedArticle): Article {
     summary: dbArticle.lead || '',
     content: dbArticle.content || '',
     category: (dbArticle.category || 'sociedade') as CategoryId,
-    imageUrl: dbArticle.image_url || PLACEHOLDER_IMAGE,
+    imageUrl: getValidImageUrl(dbArticle.image_url),
     publishedAt: dbArticle.published_at || dbArticle.created_at || new Date().toISOString(),
     readingTime: dbArticle.reading_time || 3,
     author: dbArticle.author || 'Redacção B NEWS',

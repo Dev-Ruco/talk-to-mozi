@@ -13,6 +13,7 @@ import {
   Settings,
   LayoutDashboard,
   LogOut,
+  Image,
 } from 'lucide-react';
 import { signOutAdmin, useAdminAuth } from '../../hooks/useAdminAuth';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,7 @@ const navItems = [
   { to: '/admin/scheduled', icon: Calendar, label: 'Agendadas', roles: ['admin', 'editor_chefe'] },
   { to: '/admin/published', icon: CheckCircle, label: 'Publicadas' },
   { divider: true },
+  { to: '/admin/media', icon: Image, label: 'Galeria', roles: ['admin', 'editor_chefe', 'editor'] },
   { to: '/admin/sources', icon: Rss, label: 'Fontes', roles: ['admin', 'editor_chefe'] },
   { to: '/admin/ads', icon: Megaphone, label: 'Publicidade', roles: ['admin'] },
   { to: '/admin/agent', icon: Bot, label: 'Agente IA', roles: ['admin', 'editor_chefe'] },
