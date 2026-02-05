@@ -1,118 +1,148 @@
 
-# Correcao: Paginas do CRM com Dados Nao Carregados
+# Reformulacao Automatica de Artigos pelo Agente
 
-## Problema Identificado
+## Fluxo Actual (Confirmado pela Analise)
 
-Apos investigacao com browser de testes e analise da network, encontrei a causa raiz:
-
-### 1. Problema Principal: useEffect Infinite Loop
-
-No ficheiro `ArticleFilters.tsx` (linha 63-65):
-```tsx
-useEffect(() => {
-  onFilterChange(filters);
-}, [filters]);
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           FLUXO ACTUAL                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   1. AGENTE                    2. INBOX                    3. EDITOR        │
+│   ─────────                    ─────────                   ─────────        │
+│   Puxa RSS                     Usuario ve artigos          Usuario clica    │
+│   Guarda artigos               em status "captured"        "Reformular"     │
+│   status = "captured"          Manualmente                 IA reformula     │
+│                                                            status="rewritten"│
+│                                                                             │
+│   4. EDITOR (cont.)            5. PUBLICACAO                                │
+│   ─────────────────            ──────────────                               │
+│   Usuario adiciona:            Usuario publica             MUITOS PASSOS    │
+│   - Foto                       ou agenda                   MANUAIS!         │
+│   - Tags                                                                    │
+│   - Categoria                                                               │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Este useEffect causa um loop:
-1. `filters` muda → chama `onFilterChange`
-2. `onFilterChange` actualiza estado na pagina pai (ex: InboxPage)
-3. Pagina pai re-renderiza → passa novo objecto de opcoes ao `useArticles`
-4. `useArticles` executa `fetchArticles()` → define `isLoading = true`
-5. Apos fetch, define `isLoading = false`
-6. Componente re-renderiza → `ArticleFilters` monta de novo → `filters` resetado
-7. Loop continua, causando o "piscar"
-
-### 2. Problema Secundario: Dependencias no useArticles
-
-No ficheiro `useArticles.ts` (linha 77-79):
-```tsx
-useEffect(() => {
-  fetchArticles();
-}, [status, limit, search, sourceId, category, showDuplicates]);
-```
-
-O `status` e um array que muda de referencia a cada render (mesmo com valores iguais), causando refetches desnecessarios.
+**Problema actual:**
+- O agente apenas captura artigos (status `captured`)
+- A reformulacao depende de clique manual no botao "Reformular"
+- Existem 24 artigos no status `captured` que precisam de reformulacao manual
 
 ---
 
-## Dados na Base de Dados
+## Novo Fluxo Proposto
 
-Confirmado pela query directa:
-- **25 artigos** existem com status `captured`
-- **is_duplicate = false** em todos
-- **RLS esta configurado** - requer `has_any_role(auth.uid())` para SELECT
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           NOVO FLUXO AUTOMATIZADO                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   1. AGENTE (AUTOMATICO)                                                    │
+│   ──────────────────────                                                    │
+│   a) Puxa RSS                                                               │
+│   b) Para cada artigo NOVO:                                                 │
+│      - Guarda artigo temporariamente                                        │
+│      - Chama Lovable AI com prompt "tom jornalistico"                       │
+│      - Guarda titulo, lead e conteudo reformulados                          │
+│      - Define status = "rewritten" (JA reformulado!)                        │
+│                                                                             │
+│   2. INBOX / EDICAO                                                         │
+│   ─────────────────                                                         │
+│   Usuario ve artigos JA reformulados                                        │
+│   Pode EDITAR o texto (opcional)                                            │
+│   Adiciona:                                                                 │
+│   - Foto (obrigatorio para publicar)                                        │
+│   - Tags                                                                    │
+│   - Categoria                                                               │
+│                                                                             │
+│   3. PUBLICACAO                                                             │
+│   ─────────────                                                             │
+│   Usuario publica ou agenda                                                 │
+│                                                                             │
+│   APENAS 2-3 PASSOS MANUAIS!                                                │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Plano de Correccao
+## Alteracoes Tecnicas
 
-### Correccao 1: Estabilizar ArticleFilters
+### 1. Modificar Edge Function `news-agent`
 
-Modificar `src/admin/components/pipeline/ArticleFilters.tsx`:
+O agente actual salva artigos e termina. O novo fluxo deve:
 
-```tsx
-// ANTES - causa loop infinito
-useEffect(() => {
-  onFilterChange(filters);
-}, [filters]);
-
-// DEPOIS - usar useCallback para estabilizar
-// E remover o useEffect que chama onFilterChange em cada mudanca
-// Em vez disso, chamar onFilterChange directamente no updateFilter
+**Apos salvar cada artigo:**
+```typescript
+// Depois de inserir o artigo com sucesso
+if (insertedArticle?.id) {
+  // Chamar a funcao de reescrita automaticamente
+  await rewriteArticle(supabase, insertedArticle.id, item.title, cleanText(...));
+}
 ```
 
-Abordagem:
-- Remover o `useEffect` que observa `filters`
-- Chamar `onFilterChange` directamente dentro de `updateFilter` e `clearFilters`
-- Usar `useCallback` se necessario para evitar re-renders
+**Nova funcao interna `rewriteArticle`:**
+```typescript
+async function rewriteArticle(
+  supabase: any, 
+  articleId: string, 
+  originalTitle: string, 
+  originalContent: string
+) {
+  // 1. Chamar Lovable AI Gateway com prompt "journalistic"
+  const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-3-flash-preview',
+      messages: [
+        { role: 'system', content: JOURNALISTIC_PROMPT },
+        { role: 'user', content: `TÍTULO: ${originalTitle}\n\nCONTEÚDO: ${originalContent}` },
+      ],
+      temperature: 0.7,
+    }),
+  });
 
-### Correccao 2: Estabilizar useArticles
+  // 2. Parsear resposta JSON da IA
+  const { title, lead, content } = parseAIResponse(aiResponse);
 
-Modificar `src/admin/hooks/useArticles.ts`:
-
-```tsx
-// ANTES - status muda de referencia a cada render
-useEffect(() => {
-  fetchArticles();
-}, [status, limit, search, sourceId, category, showDuplicates]);
-
-// DEPOIS - serializar status para string para comparacao estavel
-const statusKey = Array.isArray(status) ? status.sort().join(',') : (status || '');
-
-useEffect(() => {
-  fetchArticles();
-}, [statusKey, limit, search, sourceId, category, showDuplicates]);
+  // 3. Actualizar artigo na base de dados
+  await supabase
+    .from('articles')
+    .update({
+      title: title,           // Titulo reformulado
+      lead: lead,             // Lead gerado
+      content: content,       // Conteudo reformulado
+      status: 'rewritten',    // JA REFORMULADO!
+    })
+    .eq('id', articleId);
+}
 ```
 
-### Correccao 3: Evitar Re-mount do ArticleFilters
+### 2. Logs de Monitoramento
 
-Nas paginas (InboxPage, PendingPage, etc), garantir que o estado dos filtros nao causa re-mount:
+Adicionar novas accoes de log:
+- `ai_auto_rewrite` - Inicio da reformulacao automatica
+- `ai_auto_complete` - Reformulacao concluida
+- `ai_auto_error` - Erro na reformulacao (artigo fica como `captured`)
 
-```tsx
-// Usar useMemo para estabilizar as opcoes passadas ao useArticles
-const articleOptions = useMemo(() => ({
-  status: ['captured', 'rewritten'] as const,
-  search: filters.search || undefined,
-  sourceId: filters.sourceId || undefined,
-  category: filters.category || undefined,
-  showDuplicates: filters.showDuplicates,
-}), [filters.search, filters.sourceId, filters.category, filters.showDuplicates]);
+### 3. Tratamento de Erros
 
-const { articles, isLoading, updateStatus } = useArticles(articleOptions);
-```
+Se a reformulacao falhar (rate limit, erro de IA):
+- Artigo permanece com status `captured`
+- Log de erro e registado
+- Usuario pode reformular manualmente no editor
 
-### Correccao 4: Debounce na Pesquisa
+### 4. Opcao de Configuracao (Opcional)
 
-Adicionar debounce no campo de pesquisa para evitar fetches excessivos:
-
-```tsx
-const [searchInput, setSearchInput] = useState('');
-const debouncedSearch = useDebounce(searchInput, 300);
-
-useEffect(() => {
-  updateFilter('search', debouncedSearch);
-}, [debouncedSearch]);
+Adicionar toggle na pagina AgentPage para activar/desactivar reformulacao automatica:
+```typescript
+[x] Reformular automaticamente com tom jornalistico
 ```
 
 ---
@@ -121,101 +151,70 @@ useEffect(() => {
 
 | Ficheiro | Alteracao |
 |----------|-----------|
-| `src/admin/components/pipeline/ArticleFilters.tsx` | Remover useEffect loop, chamar callback directamente |
-| `src/admin/hooks/useArticles.ts` | Serializar status para string, usar useMemo |
-| `src/admin/pages/InboxPage.tsx` | Adicionar useMemo para opcoes |
-| `src/admin/pages/PendingPage.tsx` | Adicionar useMemo para opcoes |
-| `src/admin/pages/EditingPage.tsx` | Adicionar useMemo para opcoes |
-| `src/admin/pages/ScheduledPage.tsx` | Adicionar useMemo para opcoes |
-| `src/admin/pages/PublishedPage.tsx` | Adicionar useMemo para opcoes |
-| `src/hooks/useDebounce.ts` | NOVO - hook de debounce |
+| `supabase/functions/news-agent/index.ts` | Adicionar funcao `rewriteArticle` e integrar no loop de artigos |
+| `src/admin/pages/AgentPage.tsx` | (Opcional) Adicionar toggle para activar reformulacao automatica |
+| `src/admin/types/admin.ts` | Adicionar novos tipos de log |
 
 ---
 
-## Detalhes Tecnicos
+## Prompt de Tom Jornalistico (Reutilizado)
 
-### Hook useDebounce
+O prompt ja existe na funcao `rewrite-article`:
 
-```tsx
-// src/hooks/useDebounce.ts
-import { useState, useEffect } from 'react';
+```text
+Es um jornalista senior do B NEWS com decadas de experiencia.
 
-export function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+INSTRUCOES:
+- Reescreve o texto com tom jornalistico formal e profissional
+- Usa a estrutura da piramide invertida (mais importante primeiro)
+- Escreve em portugues de Mocambique (pt-MZ)
+- Adiciona contexto quando necessario sem inventar factos
+- Usa citacoes directas se existirem no original
+- Linguagem neutra e objectiva
 
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedValue(value), delay);
-    return () => clearTimeout(timer);
-  }, [value, delay]);
-
-  return debouncedValue;
+FORMATO DE RESPOSTA (JSON):
+{
+  "title": "Titulo noticioso formal",
+  "lead": "Lead jornalistico respondendo as perguntas essenciais",
+  "content": "Texto em estilo jornalistico profissional"
 }
 ```
 
-### ArticleFilters Corrigido
+---
 
-```tsx
-const updateFilter = (key: keyof ArticleFiltersState, value: any) => {
-  const actualValue = value === ALL_VALUE ? '' : value;
-  const newFilters = { ...filters, [key]: actualValue };
-  setFilters(newFilters);
-  onFilterChange(newFilters); // Chamar directamente, sem useEffect
-};
+## Consideracoes de Performance
 
-const clearFilters = () => {
-  const resetFilters = {
-    search: '',
-    sourceId: '',
-    category: '',
-    status: '',
-    showDuplicates: false,
-  };
-  setFilters(resetFilters);
-  onFilterChange(resetFilters); // Chamar directamente
-};
+1. **Rate Limits**: O Lovable AI tem limites de pedidos/minuto. Para evitar bloqueios:
+   - Processar artigos sequencialmente (nao em paralelo)
+   - Adicionar pequeno delay entre reformulacoes (500ms-1s)
+   - Se houver rate limit (429), parar e continuar na proxima execucao
 
-// REMOVER este useEffect:
-// useEffect(() => {
-//   onFilterChange(filters);
-// }, [filters]);
-```
+2. **Timeout do Edge Function**: Edge functions tem timeout de ~60s. Se houver muitos artigos:
+   - Limitar a 5-10 reformulacoes por execucao
+   - Artigos restantes serao reformulados na proxima execucao
 
-### useArticles Corrigido
-
-```tsx
-export function useArticles(options: UseArticlesOptions = {}) {
-  const { status, limit = 50, search, sourceId, category, showDuplicates = false } = options;
-  
-  // Serializar status para comparacao estavel
-  const statusKey = useMemo(() => {
-    if (!status) return '';
-    return Array.isArray(status) ? status.sort().join(',') : status;
-  }, [status]);
-
-  // ... resto do codigo ...
-
-  useEffect(() => {
-    fetchArticles();
-  }, [statusKey, limit, search, sourceId, category, showDuplicates]);
-```
+3. **Custos**: Cada reformulacao usa creditos de IA. Considerar:
+   - Apenas reformular artigos com conteudo suficiente (>100 caracteres)
+   - Nao reformular artigos duplicados
 
 ---
 
-## Resultado Esperado
+## Resultado Final
 
-Apos as correccoes:
-1. As paginas carregam os dados uma unica vez
-2. Nao ha mais "piscar" ou loops infinitos
-3. Os filtros funcionam correctamente sem re-fetches excessivos
-4. A pesquisa tem debounce para melhor performance
+Apos implementacao:
+
+| Antes | Depois |
+|-------|--------|
+| Agente captura artigos crus | Agente captura E reformula automaticamente |
+| Usuario clica "Reformular" manualmente | Artigos ja chegam reformulados |
+| Workflow: Captura → Manual → Editar → Publicar | Workflow: Captura+Reformula → Editar(opcional) → Publicar |
+| 4-5 passos manuais | 2-3 passos manuais |
 
 ---
 
-## Sequencia de Implementacao
+## Seguranca e Fallback
 
-1. Criar hook `useDebounce`
-2. Corrigir `ArticleFilters.tsx` - remover useEffect problematico
-3. Corrigir `useArticles.ts` - estabilizar dependencias
-4. Actualizar todas as paginas do pipeline com useMemo
-5. Testar cada pagina para confirmar que carrega dados sem loops
+- Se LOVABLE_API_KEY nao estiver configurada, agente continua a funcionar sem reformulacao
+- Se reformulacao falhar, artigo fica como `captured` e pode ser reformulado manualmente
+- Logs detalhados permitem monitorar o processo
 
