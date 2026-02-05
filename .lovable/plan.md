@@ -1,242 +1,188 @@
 
-# Ligacao Frontend-Backend: Artigos Publicados em Tempo Real
 
-## Problema Actual
+# Correcção: Imagens dos Artigos Não Carregam
 
-O frontend esta completamente desligado da base de dados:
+## Problema Identificado
 
-| Componente | Actualmente | Deveria |
-|------------|-------------|---------|
-| NewsFeed | Importa `articles` de `src/data/articles.ts` (mock) | Buscar artigos `status='published'` do Supabase |
-| HeroChat (slider) | Usa `getLatestArticles()` do mock | Buscar ultimos 4 artigos publicados |
-| ArticlePage | Usa `getArticleById()` do mock | Buscar artigo por ID/slug do Supabase |
-| Imagens | URLs `blob:` temporarias | Upload para Supabase Storage com URLs permanentes |
+Os artigos publicados têm URLs de imagem temporárias do tipo `blob:` que são inválidas:
 
-**Resultado**: Mesmo publicando artigos no CRM, o site nao actualiza.
+| Artigo | image_url |
+|--------|-----------|
+| Macaneta: Estrada de acesso... | `blob:https://talk-to-mozi.lovable.app/74dd5dc5...` |
+| Jornalista da STV sobrevive... | `blob:https://talk-to-mozi.lovable.app/30f3475f...` |
 
----
+**Estas URLs `blob:` deixam de funcionar** porque:
+- São criadas localmente no browser quando se selecciona uma imagem
+- Só existem na memória do browser durante aquela sessão
+- Nunca foram enviadas para o Supabase Storage
 
-## Arquitectura Proposta
-
-```text
-                    BACKEND (Supabase)                    FRONTEND (React)
-                    
-┌─────────────────────────────────────┐     ┌─────────────────────────────────────┐
-│                                     │     │                                     │
-│  articles (tabela)                  │     │  usePublishedArticles() ◄───────────┤
-│  ├── status = 'published'           │────►│  - Busca artigos publicados         │
-│  ├── image_url (Storage URL)        │     │  - Filtro por categoria             │
-│  ├── published_at                   │     │  - Ordenacao por data               │
-│  └── highlight_type                 │     │  - Paginacao infinita               │
-│                                     │     │                                     │
-│  article-images (bucket Storage)    │     │  useArticle(id) ◄───────────────────┤
-│  └── URLs permanentes               │────►│  - Busca artigo individual          │
-│                                     │     │  - Para pagina de artigo            │
-│                                     │     │                                     │
-│  RLS: articles_public_published     │     │  Components:                        │
-│  └── Permite SELECT para anon       │     │  - NewsFeed (usa hook)              │
-│                                     │     │  - HeroChat (usa hook)              │
-│                                     │     │  - ArticlePage (usa hook)           │
-│                                     │     │                                     │
-└─────────────────────────────────────┘     └─────────────────────────────────────┘
-```
+### Configuração de Storage (Confirmada OK)
+- Bucket `article-images` existe e é público
+- Políticas RLS correctas para upload/leitura
 
 ---
 
-## Plano de Implementacao
+## Plano de Correcção
 
-### Fase 1: Hooks para Artigos Publicados
+### Correcção 1: Validar Imagem Antes de Publicar
 
-**Criar `src/hooks/usePublishedArticles.ts`**
+Modificar `PublishPanel.tsx` para bloquear publicação se a imagem for uma URL `blob:`:
 
 ```typescript
-// Hook para buscar artigos publicados do Supabase
-export function usePublishedArticles(options?: {
-  category?: string;
-  limit?: number;
-  highlightType?: 'hero' | 'trending' | 'normal';
-}) {
-  // - Busca artigos com status='published'
-  // - Ordena por published_at DESC
-  // - Suporta filtro por categoria
-  // - Suporta paginacao infinita
-  // - Retorna { articles, isLoading, hasMore, loadMore }
-}
+// Validar se imagem é temporária
+const hasValidImage = article.image_url && !article.image_url.startsWith('blob:');
 
-export function useArticle(id: string) {
-  // - Busca artigo individual por ID
-  // - Retorna { article, isLoading, error }
-}
+// Desactivar botão de publicar se imagem inválida
+<Button 
+  onClick={onPublish}
+  disabled={isSaving || !article.title || !article.content || !hasValidImage}
+>
+  Publicar agora
+</Button>
 
-export function useLatestArticles(count: number) {
-  // - Busca ultimos N artigos para slider
-  // - Filtro opcional por highlight_type
-}
+// Mostrar aviso se imagem é temporária
+{article.image_url?.startsWith('blob:') && (
+  <p className="text-xs text-destructive">
+    ⚠️ Imagem temporária - clique "Alterar" para guardar permanentemente
+  </p>
+)}
 ```
 
-### Fase 2: Corrigir Upload de Imagens
+### Correcção 2: Fallback de Imagem no Frontend
 
-**Modificar `src/admin/components/editor/PublishPanel.tsx`**
+Modificar `NewsCard.tsx` e `HeroChat.tsx` para mostrar placeholder quando imagem falha:
 
 ```typescript
-// ANTES - URLs temporarias (perdem-se)
-onUpdate({ image_url: URL.createObjectURL(file) });
+// Detectar URLs inválidas
+const isValidImageUrl = (url?: string) => {
+  if (!url) return false;
+  if (url.startsWith('blob:')) return false;
+  return true;
+};
 
-// DEPOIS - Upload para Supabase Storage
-const { data } = await supabase.storage
-  .from('article-images')
-  .upload(`${articleId}/${file.name}`, file);
-
-const publicUrl = supabase.storage
-  .from('article-images')
-  .getPublicUrl(data.path).data.publicUrl;
-
-onUpdate({ image_url: publicUrl });
+// Usar placeholder
+const imageUrl = isValidImageUrl(article.imageUrl) 
+  ? article.imageUrl 
+  : '/placeholder.svg';
 ```
 
-### Fase 3: Actualizar Componentes do Frontend
+### Correcção 3: Hook de Upload com Preview Melhorado
 
-**1. NewsFeed.tsx**
-
-```typescript
-// ANTES
-import { articles } from '@/data/articles';
-
-// DEPOIS  
-import { usePublishedArticles } from '@/hooks/usePublishedArticles';
-
-export function NewsFeed({ categoryFilter }) {
-  const { articles, isLoading, hasMore, loadMore } = usePublishedArticles({
-    category: categoryFilter,
-    limit: 10,
-  });
-  // ... renderizar artigos da base de dados
-}
-```
-
-**2. HeroChat.tsx**
+Modificar `handleImageUpload` para mostrar preview temporário enquanto faz upload:
 
 ```typescript
-// ANTES
-import { getLatestArticles } from '@/data/articles';
-const latestArticles = getLatestArticles(3);
-
-// DEPOIS
-import { useLatestArticles } from '@/hooks/usePublishedArticles';
-const { articles: latestArticles, isLoading } = useLatestArticles(4);
-```
-
-**3. ArticlePage.tsx**
-
-```typescript
-// ANTES
-import { getArticleById } from '@/data/articles';
-const article = getArticleById(id);
-
-// DEPOIS
-import { useArticle } from '@/hooks/usePublishedArticles';
-const { article, isLoading, error } = useArticle(id);
-```
-
-### Fase 4: Tipo Article Unificado
-
-**Criar `src/types/article.ts`** (ou actualizar `news.ts`)
-
-```typescript
-import { Tables } from '@/integrations/supabase/types';
-
-// Tipo derivado directamente da base de dados
-export type PublishedArticle = Tables<'articles'>;
-
-// Adaptador para manter compatibilidade com componentes existentes
-export function adaptArticle(dbArticle: PublishedArticle): Article {
-  return {
-    id: dbArticle.id,
-    title: dbArticle.title || '',
-    summary: dbArticle.lead || '',
-    content: dbArticle.content || '',
-    category: (dbArticle.category || 'sociedade') as CategoryId,
-    imageUrl: dbArticle.image_url || undefined,
-    publishedAt: dbArticle.published_at || '',
-    readingTime: dbArticle.reading_time || 3,
-    author: dbArticle.author || 'Redaccao B NEWS',
-    quickFacts: dbArticle.quick_facts || [],
-    relatedArticleIds: [], // Calculado separadamente
-    tags: dbArticle.tags || [],
+const handleImageUpload = async () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (file && article.id) {
+      // Mostrar preview temporário imediatamente
+      const previewUrl = URL.createObjectURL(file);
+      onUpdate({ image_url: previewUrl }); // Temporário para preview
+      
+      // Fazer upload real ao Storage
+      const permanentUrl = await uploadImage(file, article.id);
+      if (permanentUrl) {
+        onUpdate({ image_url: permanentUrl }); // Substituir por URL permanente
+        URL.revokeObjectURL(previewUrl); // Limpar blob
+      }
+    }
   };
-}
+  input.click();
+};
 ```
 
 ---
 
-## Ficheiros a Criar/Modificar
+## Ficheiros a Modificar
 
-| Ficheiro | Accao | Descricao |
-|----------|-------|-----------|
-| `src/hooks/usePublishedArticles.ts` | CRIAR | Hooks para artigos publicados |
-| `src/components/news/NewsFeed.tsx` | MODIFICAR | Usar hook em vez de mock |
-| `src/components/news/HeroChat.tsx` | MODIFICAR | Usar hook para slider |
-| `src/pages/ArticlePage.tsx` | MODIFICAR | Buscar artigo do Supabase |
-| `src/admin/components/editor/PublishPanel.tsx` | MODIFICAR | Upload de imagens para Storage |
-| `src/types/article.ts` | CRIAR | Tipos unificados e adaptador |
+| Ficheiro | Alteração |
+|----------|-----------|
+| `src/admin/components/editor/PublishPanel.tsx` | Validar imagem antes de publicar, mostrar aviso |
+| `src/components/news/NewsCard.tsx` | Fallback para placeholder em imagens inválidas |
+| `src/components/news/HeroChat.tsx` | Fallback para placeholder em imagens inválidas |
+| `src/hooks/usePublishedArticles.ts` | Validar URLs de imagem no adaptador |
 
 ---
 
-## Logica de Destaques no Feed
+## Corrigir Artigos Existentes
 
-Artigos recentes/importantes aparecem primeiro:
-
-```typescript
-// Query para NewsFeed
-const { data } = await supabase
-  .from('articles')
-  .select('*')
-  .eq('status', 'published')
-  .order('highlight_type', { ascending: true }) // hero primeiro
-  .order('published_at', { ascending: false })
-  .limit(limit);
-```
-
-Para o slider do Hero:
-
-```typescript
-// Ultimos 4 artigos OU artigos marcados como "hero"
-const { data } = await supabase
-  .from('articles')
-  .select('*')
-  .eq('status', 'published')
-  .or('highlight_type.eq.hero,published_at.gte.' + last24h)
-  .order('published_at', { ascending: false })
-  .limit(4);
-```
+Para os 2 artigos já publicados com URLs `blob:`, será necessário:
+1. Ir ao editor de cada artigo
+2. Clicar "Alterar" na imagem
+3. Seleccionar nova imagem (será feito upload real)
+4. Guardar o artigo
 
 ---
 
 ## Resultado Esperado
 
-Apos implementacao:
+Após implementação:
 
-1. **Publicar artigo no CRM** → Aparece imediatamente no site
-2. **Slider do Hero** → Mostra ultimas 4 noticias publicadas
-3. **Feed principal** → Artigos ordenados por data/destaque
-4. **Imagens persistem** → Upload para Storage com URLs permanentes
-5. **Dados mock eliminados** → `src/data/articles.ts` pode ser removido
+| Antes | Depois |
+|-------|--------|
+| Imagens `blob:` não carregam | URLs permanentes do Storage |
+| Publicar com imagem temporária | Bloqueado até imagem ser guardada |
+| Sem feedback de erro | Aviso claro sobre imagem inválida |
+| Imagem quebrada no feed | Placeholder elegante |
 
 ---
 
-## Consideracoes Tecnicas
+## Fluxo Visual Corrigido
 
-### RLS (Row Level Security)
-A politica `articles_public_published` ja existe e permite:
-- Utilizadores anonimos podem ler artigos com `status='published'`
-- Nao e necessaria autenticacao para ver o site publico
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           FLUXO DE IMAGEM CORRIGIDO                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   1. SELECCIONAR                2. PREVIEW                 3. UPLOAD        │
+│   ──────────────                ─────────                  ──────────       │
+│   Utilizador escolhe            Mostra preview             Envia para       │
+│   ficheiro local                temporário (blob:)         Supabase Storage │
+│                                                                             │
+│   4. URL PERMANENTE             5. PUBLICAR                                 │
+│   ─────────────────             ──────────                                  │
+│   Guarda URL do Storage         Só permite publicar                         │
+│   na base de dados              com URL válida                              │
+│                                                                             │
+│   RESULTADO: https://kwwzfhpamciilgmknsov.supabase.co/storage/v1/object/... │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+Adicionar ao dashboard do portal uma gestão completa de imagens integrada ao fluxo editorial.
 
-### Performance
-- Usar React Query (`@tanstack/react-query`) para cache e deduplicacao
-- Implementar paginacao para evitar carregar todos os artigos
-- Prefetch de artigos ao hover para navegacao mais rapida
+Na sessão de edição de artigos e upload de novas imagens, deve existir uma opção para:
 
-### Fallback Gracioso
-- Se nao houver artigos publicados, mostrar mensagem amigavel
-- Se imagem falhar, usar placeholder padrao
+Seleccionar imagens já existentes na base de dados de media;
 
+Pesquisar imagens por nome, descrição ou data;
+
+Pré-visualizar antes de inserir no artigo;
+
+Inserir a imagem directamente no conteúdo do artigo.
+
+O sistema deve possuir uma base de dados própria para armazenamento de imagens (media library), onde todas as imagens enviadas ficam organizadas e reutilizáveis.
+
+Criar uma página exclusiva de Galeria no dashboard, independente da edição de artigos, onde o utilizador possa:
+
+Visualizar todas as imagens carregadas;
+
+Fazer upload local de novas imagens;
+
+Adicionar informações básicas a cada imagem:
+
+Título
+
+Descrição da fotografia
+
+Data
+
+Tags/palavras-chave
+
+Editar ou remover imagens.
+
+Esta galeria deve funcionar como um arquivo fotográfico central do portal, permitindo reutilização rápida das imagens durante o processo editorial, sem necessidade de novo upload.
+
+O objectivo é tornar o fluxo de produção de notícias mais rápido, organizado e profissional, evitando uploads repetidos e criando um acervo visual próprio do portal.
