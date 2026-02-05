@@ -349,18 +349,18 @@ export default function ChatPage() {
 
         {/* Chat input - Fixed at bottom */}
         <form onSubmit={handleFormSubmit} className="flex-shrink-0 sticky bottom-0 bg-background pt-2 pb-4">
-          <div className="relative">
+          <div className="flex gap-2">
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Escreva qualquer tema: inflação, chuvas, política, dólar…"
-              className="h-14 pr-14 text-base"
+              className="h-14 flex-1 text-base"
               disabled={isLoading}
             />
             <Button
               type="submit"
               size="icon"
-              className="absolute right-2 top-1/2 h-10 w-10 -translate-y-1/2"
+              className="h-14 w-14 shrink-0"
               disabled={isLoading || !input.trim()}
             >
               <Send className="h-5 w-5" />
