@@ -26,6 +26,7 @@ import AgentPage from "./admin/pages/AgentPage";
 import TeamPage from "./admin/pages/TeamPage";
 import SettingsPage from "./admin/pages/SettingsPage";
 import ArticleEditorPage from "./admin/pages/ArticleEditorPage";
+import MediaPage from "./admin/pages/MediaPage";
 
 const queryClient = new QueryClient();
 
@@ -59,6 +60,7 @@ const App = () => (
           <Route path="/admin/team" element={<TeamPage />} />
           <Route path="/admin/settings" element={<SettingsPage />} />
           <Route path="/admin/article/:id" element={<ArticleEditorPage />} />
+          <Route path="/admin/media" element={<MediaPage />} />
           
           <Route path="*" element={<NotFound />} />
         </Routes>

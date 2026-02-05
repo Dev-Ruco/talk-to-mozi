@@ -10,6 +10,7 @@ import { sponsoredAds } from '@/data/ads';
 import { Carousel, CarouselContent, CarouselItem } from '@/components/ui/carousel';
 import { SponsoredCard } from './SponsoredCard';
 import Autoplay from 'embla-carousel-autoplay';
+import { getValidImageUrl } from '@/lib/imageUtils';
 
 export function HeroChat() {
   const [query, setQuery] = useState('');
@@ -163,9 +164,12 @@ export function HeroChat() {
                         whileTap={{ scale: 0.98 }}
                       >
                         <img
-                          src={item.data.imageUrl || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&h=400&fit=crop'}
+                          src={getValidImageUrl(item.data.imageUrl)}
                           alt={item.data.title}
                           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          onError={(e) => {
+                            e.currentTarget.src = '/placeholder.svg';
+                          }}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
                         <div className="absolute bottom-0 left-0 right-0 p-4">
