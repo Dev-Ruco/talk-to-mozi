@@ -139,10 +139,11 @@ export function HeroChat() {
           transition={{ duration: 0.5, delay: 0.5 }}
         >
           {isLoadingArticles ? (
-            // Loading skeleton for carousel
+            // Loading skeleton for carousel - 3 cards on desktop
             <div className="flex gap-4 overflow-hidden">
-              <Skeleton className="h-48 w-full shrink-0 rounded-xl md:w-1/2" />
-              <Skeleton className="hidden h-48 w-1/2 shrink-0 rounded-xl md:block" />
+              <Skeleton className="h-48 w-full shrink-0 rounded-xl md:w-1/2 lg:w-1/3" />
+              <Skeleton className="hidden h-48 w-1/2 shrink-0 rounded-xl md:block lg:w-1/3" />
+              <Skeleton className="hidden h-48 w-1/3 shrink-0 rounded-xl lg:block" />
             </div>
           ) : carouselItems.length > 0 ? (
             <Carousel 
@@ -155,7 +156,7 @@ export function HeroChat() {
             >
               <CarouselContent>
                 {carouselItems.map((item, index) => (
-                  <CarouselItem key={index} className="basis-full md:basis-1/2 lg:basis-1/2">
+                  <CarouselItem key={index} className="basis-full md:basis-1/2 lg:basis-1/3">
                     {item.type === 'article' ? (
                       <motion.button
                         onClick={() => handleArticleChat(item.data.id)}
