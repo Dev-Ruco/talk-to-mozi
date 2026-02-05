@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Article, ArticleStatus } from '../types/admin';
 
@@ -17,8 +17,14 @@ export function useArticles(options: UseArticlesOptions = {}) {
   const [error, setError] = useState<Error | null>(null);
 
   const { status, limit = 50, search, sourceId, category, showDuplicates = false } = options;
+ 
+   // Serialize status to stable string for dependency comparison
+   const statusKey = useMemo(() => {
+     if (!status) return '';
+     return Array.isArray(status) ? [...status].sort().join(',') : status;
+   }, [Array.isArray(status) ? status.join(',') : status]);
 
-  const fetchArticles = async () => {
+   const fetchArticles = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
@@ -72,11 +78,11 @@ export function useArticles(options: UseArticlesOptions = {}) {
     } finally {
       setIsLoading(false);
     }
-  };
+   }, [statusKey, limit, search, sourceId, category, showDuplicates]);
 
   useEffect(() => {
     fetchArticles();
-  }, [status, limit, search, sourceId, category, showDuplicates]);
+   }, [fetchArticles]);
 
   const updateStatus = async (articleId: string, newStatus: ArticleStatus) => {
     const updates: Partial<Article> = { status: newStatus };
