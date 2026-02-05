@@ -6,11 +6,15 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useLatestArticles } from '@/hooks/usePublishedArticles';
+import { useTrendingTopics } from '@/hooks/useTrendingTopics';
 import { sponsoredAds } from '@/data/ads';
 import { Carousel, CarouselContent, CarouselItem } from '@/components/ui/carousel';
 import { SponsoredCard } from './SponsoredCard';
 import Autoplay from 'embla-carousel-autoplay';
 import { getValidImageUrl } from '@/lib/imageUtils';
+
+// Fallback topics if trending data is not available
+const fallbackTopics = ['inflação', 'combustível', 'chuvas', 'política', 'dólar', 'saúde', 'educação'];
 
 export function HeroChat() {
   const [query, setQuery] = useState('');
@@ -20,11 +24,17 @@ export function HeroChat() {
   // Fetch latest 4 articles from database
   const { data: latestArticles = [], isLoading: isLoadingArticles } = useLatestArticles(4);
   
+  // Fetch trending topics
+  const { data: trendingData, isLoading: isLoadingTrending } = useTrendingTopics();
+  
   const autoplayPlugin = useRef(
     Autoplay({ delay: 5000, stopOnInteraction: true })
   );
 
-  const quickTopics = ['inflação', 'combustível', 'chuvas', 'política', 'dólar', 'saúde', 'educação'];
+  // Use dynamic topics or fallback
+  const quickTopics = trendingData?.topics?.length 
+    ? trendingData.topics.slice(0, 7)
+    : fallbackTopics;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,27 +116,38 @@ export function HeroChat() {
             </motion.div>
           </div>
           
-          {/* Quick topics */}
+          {/* Quick topics - Dynamic */}
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
               Exemplos do que pode perguntar:
             </p>
             <div className="flex flex-wrap justify-center gap-2">
-              {quickTopics.map((topic, index) => (
-                <motion.button
-                  key={topic}
-                  type="button"
-                  onClick={() => navigate(`/chat?q=${encodeURIComponent(topic)}`)}
-                  className="rounded-full border bg-background px-3 py-1 text-xs transition-colors hover:border-primary hover:text-primary"
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0.3 + index * 0.05 }}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  {topic}
-                </motion.button>
-              ))}
+              {isLoadingTrending ? (
+                // Loading skeletons
+                <>
+                  <Skeleton className="h-7 w-16 rounded-full" />
+                  <Skeleton className="h-7 w-20 rounded-full" />
+                  <Skeleton className="h-7 w-14 rounded-full" />
+                  <Skeleton className="h-7 w-18 rounded-full" />
+                  <Skeleton className="h-7 w-16 rounded-full" />
+                </>
+              ) : (
+                quickTopics.map((topic, index) => (
+                  <motion.button
+                    key={topic}
+                    type="button"
+                    onClick={() => navigate(`/chat?q=${encodeURIComponent(topic)}`)}
+                    className="rounded-full border bg-background px-3 py-1 text-xs transition-colors hover:border-primary hover:text-primary"
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: 0.3 + index * 0.05 }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    {topic}
+                  </motion.button>
+                ))
+              )}
             </div>
           </div>
         </motion.form>
