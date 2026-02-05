@@ -3,12 +3,15 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { AppRole } from '../types/admin';
 
+export type AuthError = 'no_session' | 'no_role' | 'role_fetch_failed' | null;
+
 interface AdminAuthState {
   user: User | null;
   session: Session | null;
   role: AppRole | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  authError: AuthError;
   hasRole: (requiredRole: AppRole | AppRole[]) => boolean;
 }
 
@@ -17,21 +20,25 @@ export function useAdminAuth(): AdminAuthState {
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [authError, setAuthError] = useState<AuthError>(null);
 
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        console.log('[AdminAuth] Auth state changed:', event, session?.user?.email);
         setSession(session);
         setUser(session?.user ?? null);
         
         // Defer role fetch with setTimeout
         if (session?.user) {
+          setAuthError(null);
           setTimeout(() => {
             fetchUserRole(session.user.id);
           }, 0);
         } else {
           setRole(null);
+          setAuthError('no_session');
           setIsLoading(false);
         }
       }
@@ -39,12 +46,14 @@ export function useAdminAuth(): AdminAuthState {
 
     // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('[AdminAuth] Initial session check:', session?.user?.email ?? 'no session');
       setSession(session);
       setUser(session?.user ?? null);
       
       if (session?.user) {
         fetchUserRole(session.user.id);
       } else {
+        setAuthError('no_session');
         setIsLoading(false);
       }
     });
@@ -54,6 +63,7 @@ export function useAdminAuth(): AdminAuthState {
 
   const fetchUserRole = async (userId: string) => {
     try {
+      console.log('[AdminAuth] Fetching role for user:', userId);
       const { data, error } = await supabase
         .from('user_roles')
         .select('role')
@@ -63,12 +73,20 @@ export function useAdminAuth(): AdminAuthState {
       if (error) {
         console.error('Error fetching user role:', error);
         setRole(null);
-      } else {
+        setAuthError('role_fetch_failed');
+      } else if (data?.role) {
+        console.log('[AdminAuth] Role found:', data.role);
         setRole(data?.role as AppRole ?? null);
+        setAuthError(null);
+      } else {
+        console.log('[AdminAuth] No role found for user');
+        setRole(null);
+        setAuthError('no_role');
       }
     } catch (err) {
       console.error('Error in fetchUserRole:', err);
       setRole(null);
+      setAuthError('role_fetch_failed');
     } finally {
       setIsLoading(false);
     }
@@ -96,6 +114,7 @@ export function useAdminAuth(): AdminAuthState {
     role,
     isLoading,
     isAuthenticated: !!session && !!role,
+    authError,
     hasRole,
   };
 }
