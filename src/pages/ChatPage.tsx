@@ -1,18 +1,22 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Send, MessageCircle, Sparkles } from 'lucide-react';
+import { Send, Sparkles, AlertCircle } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { NewsCard } from '@/components/news/NewsCard';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { searchArticles, getLatestArticles } from '@/data/articles';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useLatestArticles } from '@/hooks/usePublishedArticles';
 import { useLikedArticles } from '@/hooks/useLikedArticles';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import type { Article } from '@/types/news';
 
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  relatedArticles?: ReturnType<typeof searchArticles>;
+  relatedArticleIds?: string[];
 }
 
 export default function ChatPage() {
@@ -22,9 +26,12 @@ export default function ChatPage() {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [relatedArticles, setRelatedArticles] = useState<Article[]>([]);
   const { isLiked, toggleLike } = useLikedArticles();
 
-  const latestArticles = useMemo(() => getLatestArticles(4), []);
+  // Fetch latest articles from database
+  const { data: latestArticles, isLoading: isLoadingLatest } = useLatestArticles(4);
 
   const suggestions = [
     'Mostra-me tudo sobre economia esta semana',
@@ -40,12 +47,44 @@ export default function ChatPage() {
     }
   }, []);
 
+  // Fetch articles by IDs
+  const fetchArticlesByIds = async (ids: string[]): Promise<Article[]> => {
+    if (!ids || ids.length === 0) return [];
+    
+    const { data, error } = await supabase
+      .from('articles')
+      .select('*')
+      .in('id', ids)
+      .eq('status', 'published');
+    
+    if (error) {
+      console.error('[ChatPage] Error fetching articles:', error);
+      return [];
+    }
+    
+    return (data || []).map(article => ({
+      id: article.id,
+      title: article.title || '',
+      summary: article.lead || '',
+      content: article.content || '',
+      category: (article.category || 'sociedade') as Article['category'],
+      imageUrl: article.image_url || '/placeholder.svg',
+      publishedAt: article.published_at || article.created_at || new Date().toISOString(),
+      readingTime: article.reading_time || 3,
+      author: article.author || 'Redacção B NEWS',
+      quickFacts: article.quick_facts || [],
+      relatedArticleIds: [],
+      tags: article.tags || [],
+    }));
+  };
+
   const handleSubmit = async (query?: string) => {
     const text = query || input.trim();
     if (!text) return;
 
     setInput('');
     setIsLoading(true);
+    setError(null);
 
     // Add user message
     const userMessage: ChatMessage = {
@@ -55,21 +94,47 @@ export default function ChatPage() {
     };
     setMessages(prev => [...prev, userMessage]);
 
-    // Simulate AI response with related articles
-    setTimeout(() => {
-      const relatedArticles = searchArticles(text);
-      const response = generateMockResponse(text, relatedArticles);
-      
+    try {
+      // Call the chat Edge Function
+      const { data, error: fnError } = await supabase.functions.invoke('chat', {
+        body: {
+          question: text,
+          conversation_history: messages.map(m => ({ role: m.role, content: m.content }))
+        }
+      });
+
+      if (fnError) {
+        console.error('[ChatPage] Function error:', fnError);
+        throw new Error(fnError.message || 'Erro ao processar a pergunta');
+      }
+
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
+      // Fetch related articles
+      const articles = await fetchArticlesByIds(data?.related_article_ids || []);
+      setRelatedArticles(articles);
+
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: response,
-        relatedArticles: relatedArticles.slice(0, 4),
+        content: data?.response || 'Não consegui processar a sua pergunta.',
+        relatedArticleIds: data?.related_article_ids || [],
       };
       
       setMessages(prev => [...prev, assistantMessage]);
+    } catch (err) {
+      console.error('[ChatPage] Error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao processar a pergunta';
+      setError(errorMessage);
+      toast.error(errorMessage);
+      
+      // Remove user message on error
+      setMessages(prev => prev.filter(m => m.id !== userMessage.id));
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   const handleFormSubmit = (e: React.FormEvent) => {
@@ -111,6 +176,14 @@ export default function ChatPage() {
           </div>
         </form>
 
+        {/* Error message */}
+        {error && (
+          <div className="mb-6 flex items-center gap-2 rounded-lg bg-destructive/10 p-4 text-destructive">
+            <AlertCircle className="h-5 w-5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
         {/* Messages or suggestions */}
         {messages.length === 0 ? (
           <div className="space-y-6">
@@ -124,7 +197,8 @@ export default function ChatPage() {
                   <button
                     key={index}
                     onClick={() => handleSubmit(suggestion)}
-                    className="flex items-center gap-3 rounded-lg border bg-card p-4 text-left text-sm transition-colors hover:bg-accent"
+                    disabled={isLoading}
+                    className="flex items-center gap-3 rounded-lg border bg-card p-4 text-left text-sm transition-colors hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Sparkles className="h-4 w-4 text-primary shrink-0" />
                     <span>{suggestion}</span>
@@ -139,21 +213,33 @@ export default function ChatPage() {
                 Últimas notícias
               </p>
               <div className="flex flex-col gap-3">
-                {latestArticles.map((article) => (
-                  <NewsCard
-                    key={article.id}
-                    article={article}
-                    variant="compact"
-                    isSaved={isLiked(article.id)}
-                    onToggleSave={() => toggleLike(article.id)}
-                  />
-                ))}
+                {isLoadingLatest ? (
+                  <>
+                    <Skeleton className="h-20 w-full rounded-lg" />
+                    <Skeleton className="h-20 w-full rounded-lg" />
+                    <Skeleton className="h-20 w-full rounded-lg" />
+                  </>
+                ) : latestArticles && latestArticles.length > 0 ? (
+                  latestArticles.map((article) => (
+                    <NewsCard
+                      key={article.id}
+                      article={article}
+                      variant="compact"
+                      isSaved={isLiked(article.id)}
+                      onToggleSave={() => toggleLike(article.id)}
+                    />
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    Nenhuma notícia publicada ainda.
+                  </p>
+                )}
               </div>
             </div>
           </div>
         ) : (
           <div className="space-y-6">
-            {messages.map((message) => (
+            {messages.map((message, msgIndex) => (
               <div key={message.id} className="space-y-4">
                 {message.role === 'user' ? (
                   <div className="flex justify-end">
@@ -169,18 +255,18 @@ export default function ChatPage() {
                         <Sparkles className="h-4 w-4 text-primary" />
                       </div>
                       <div className="flex-1 rounded-2xl rounded-tl-md bg-muted/50 px-4 py-3">
-                        <p className="text-sm leading-relaxed">{message.content}</p>
+                        <p className="text-sm leading-relaxed whitespace-pre-line">{message.content}</p>
                       </div>
                     </div>
 
-                    {/* Related articles */}
-                    {message.relatedArticles && message.relatedArticles.length > 0 && (
+                    {/* Related articles - only show for the last assistant message */}
+                    {msgIndex === messages.length - 1 && relatedArticles.length > 0 && (
                       <div className="ml-11 space-y-3">
                         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                           Notícias relacionadas
                         </p>
                         <div className="flex flex-col gap-3">
-                          {message.relatedArticles.map((article) => (
+                          {relatedArticles.map((article) => (
                             <NewsCard
                               key={article.id}
                               article={article}
@@ -222,26 +308,4 @@ export default function ChatPage() {
       </div>
     </Layout>
   );
-}
-
-function generateMockResponse(query: string, articles: ReturnType<typeof searchArticles>): string {
-  const queryLower = query.toLowerCase();
-  
-  if (articles.length === 0) {
-    return `Não encontrei notícias específicas sobre "${query}" na nossa base de dados. Tente reformular a pergunta ou explorar os temas disponíveis.`;
-  }
-
-  if (queryLower.includes('economia') || queryLower.includes('dólar') || queryLower.includes('inflação')) {
-    return `Sobre economia, encontrei ${articles.length} notícias relevantes. As mais recentes abordam temas como taxas de câmbio, políticas do Banco de Moçambique e impactos no custo de vida. Veja os detalhes nas notícias abaixo.`;
-  }
-
-  if (queryLower.includes('política') || queryLower.includes('governo')) {
-    return `Em relação à política, há ${articles.length} notícias recentes. Os principais temas incluem novas medidas governamentais, decisões parlamentares e relações institucionais.`;
-  }
-
-  if (queryLower.includes('saúde')) {
-    return `Sobre saúde em Moçambique, encontrei ${articles.length} artigos que cobrem temas como programas de vacinação, infraestrutura hospitalar e políticas de saúde pública.`;
-  }
-
-  return `Encontrei ${articles.length} notícias relacionadas com "${query}". As mais relevantes estão listadas abaixo. Cada uma pode ser explorada em detalhe através do botão "Conversar".`;
 }
