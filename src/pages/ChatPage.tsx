@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useLatestArticles } from '@/hooks/usePublishedArticles';
-import { useLikedArticles } from '@/hooks/useLikedArticles';
 import { useTrendingSuggestions } from '@/hooks/useTrendingTopics';
 import { InlineChatCarousel } from '@/components/news/InlineChatCarousel';
 import { sponsoredAds } from '@/data/ads';
@@ -31,7 +30,6 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [relatedArticles, setRelatedArticles] = useState<Article[]>([]);
-  const { isLiked, toggleLike } = useLikedArticles();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch latest articles from database
@@ -59,6 +57,11 @@ export default function ChatPage() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Scroll to top on initial page load
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, []);
 
   // Handle initial query from URL
   useEffect(() => {
@@ -254,8 +257,6 @@ export default function ChatPage() {
                         key={article.id}
                         article={article}
                         variant="compact"
-                        isSaved={isLiked(article.id)}
-                        onToggleSave={() => toggleLike(article.id)}
                       />
                     ))
                   ) : (
@@ -301,8 +302,6 @@ export default function ChatPage() {
                                   key={article.id}
                                   article={article}
                                   variant="compact"
-                                  isSaved={isLiked(article.id)}
-                                  onToggleSave={() => toggleLike(article.id)}
                                 />
                               ))}
                             </div>

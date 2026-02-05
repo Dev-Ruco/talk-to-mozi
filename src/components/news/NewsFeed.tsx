@@ -4,7 +4,6 @@ import { usePublishedArticles, adaptArticle } from '@/hooks/usePublishedArticles
 import { sponsoredAds } from '@/data/ads';
 import { NewsCard } from './NewsCard';
 import { SponsoredCard } from './SponsoredCard';
-import { useLikedArticles } from '@/hooks/useLikedArticles';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface NewsFeedProps {
@@ -13,7 +12,6 @@ interface NewsFeedProps {
 }
 
 export function NewsFeed({ categoryFilter, initialCount = 6 }: NewsFeedProps) {
-  const { isLiked, toggleLike } = useLikedArticles();
   const loadingRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -110,11 +108,7 @@ export function NewsFeed({ categoryFilter, initialCount = 6 }: NewsFeedProps) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: Math.min(index * 0.05, 0.2) }}
           >
-            <NewsCard
-              article={article}
-              isSaved={isLiked(article.id)}
-              onToggleSave={() => toggleLike(article.id)}
-            />
+            <NewsCard article={article} />
             
             {/* Insert sponsored card after every 8th item */}
             {(index + 1) % 8 === 0 && index < displayedArticles.length - 1 && (

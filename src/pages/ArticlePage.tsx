@@ -18,6 +18,11 @@ export default function ArticlePage() {
   const { isLiked, toggleLike } = useLikedArticles();
   const [showFloatingButton, setShowFloatingButton] = useState(true);
   const [showBigHeart, setShowBigHeart] = useState(false);
+
+  // Scroll to top when page loads or article changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [id]);
   
   // Fetch article from database
   const { data: article, isLoading, isError } = useArticle(id);
@@ -263,8 +268,6 @@ export default function ArticlePage() {
                   key={related.id}
                   article={related}
                   variant="compact"
-                  isSaved={isLiked(related.id)}
-                  onToggleSave={() => toggleLike(related.id)}
                 />
               ))}
             </div>

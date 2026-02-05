@@ -8,6 +8,19 @@ interface UseImageUploadOptions {
   onError?: (error: Error) => void;
 }
 
+// Helper function to get image dimensions
+async function getImageDimensions(file: File): Promise<{ width: number; height: number }> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      resolve({ width: img.width, height: img.height });
+      URL.revokeObjectURL(img.src);
+    };
+    img.onerror = () => resolve({ width: 0, height: 0 });
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 export function useImageUpload(options: UseImageUploadOptions = {}) {
   const { 
     bucket = 'article-images', 
@@ -60,7 +73,7 @@ export function useImageUpload(options: UseImageUploadOptions = {}) {
         throw error;
       }
 
-      setProgress(70);
+      setProgress(60);
 
       // Get public URL
       const { data: urlData } = supabase.storage
@@ -68,6 +81,39 @@ export function useImageUpload(options: UseImageUploadOptions = {}) {
         .getPublicUrl(data.path);
 
       const publicUrl = urlData.publicUrl;
+
+      setProgress(80);
+      
+      // Auto-save to media library
+      if (publicUrl) {
+        try {
+          const dimensions = await getImageDimensions(file);
+          
+          const { error: mediaError } = await supabase
+            .from('media')
+            .insert({
+              file_name: file.name,
+              file_path: data.path,
+              url: publicUrl,
+              title: `Imagem - ${articleId}`,
+              file_size: file.size,
+              mime_type: file.type,
+              width: dimensions.width || null,
+              height: dimensions.height || null,
+              tags: ['artigo', 'upload'],
+            });
+          
+          if (mediaError) {
+            console.warn('Failed to add to media library:', mediaError);
+            // Don't block - image was uploaded successfully
+          } else {
+            console.log('Image added to media library');
+          }
+        } catch (mediaErr) {
+          console.warn('Error adding to media library:', mediaErr);
+          // Don't block - image was uploaded successfully
+        }
+      }
 
       setProgress(100);
       
