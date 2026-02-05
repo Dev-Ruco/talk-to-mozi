@@ -1,145 +1,221 @@
 
-# Auditoria CRM: Problema Identificado e Plano de Correcao
+# Correcao: Paginas do CRM com Dados Nao Carregados
 
-## Problema Raiz Encontrado
+## Problema Identificado
 
-O componente `SelectItem` do Radix UI **nao suporta valores vazios** (`value=""`). Quando isto acontece, o componente quebra silenciosamente e impede toda a pagina de renderizar.
+Apos investigacao com browser de testes e analise da network, encontrei a causa raiz:
 
-### Ficheiro Afectado
+### 1. Problema Principal: useEffect Infinite Loop
 
-**`src/admin/components/pipeline/ArticleFilters.tsx`**
-
+No ficheiro `ArticleFilters.tsx` (linha 63-65):
 ```tsx
-// Linhas 110, 125, 141 - PROBLEMA
-<SelectItem value="">Todas as fontes</SelectItem>
-<SelectItem value="">Todas as categorias</SelectItem>
-<SelectItem value="">Todos os estados</SelectItem>
+useEffect(() => {
+  onFilterChange(filters);
+}, [filters]);
 ```
 
-### Porque o Dashboard Funciona e as Outras Paginas Nao
+Este useEffect causa um loop:
+1. `filters` muda → chama `onFilterChange`
+2. `onFilterChange` actualiza estado na pagina pai (ex: InboxPage)
+3. Pagina pai re-renderiza → passa novo objecto de opcoes ao `useArticles`
+4. `useArticles` executa `fetchArticles()` → define `isLoading = true`
+5. Apos fetch, define `isLoading = false`
+6. Componente re-renderiza → `ArticleFilters` monta de novo → `filters` resetado
+7. Loop continua, causando o "piscar"
 
-- O `AdminDashboard` nao usa o componente `ArticleFilters`
-- As paginas `InboxPage`, `PendingPage`, `EditingPage`, `ScheduledPage`, `PublishedPage` todas usam `ArticleFilters`
-- Quando o `ArticleFilters` tenta renderizar com `SelectItem value=""`, toda a pagina quebra
+### 2. Problema Secundario: Dependencias no useArticles
+
+No ficheiro `useArticles.ts` (linha 77-79):
+```tsx
+useEffect(() => {
+  fetchArticles();
+}, [status, limit, search, sourceId, category, showDuplicates]);
+```
+
+O `status` e um array que muda de referencia a cada render (mesmo com valores iguais), causando refetches desnecessarios.
 
 ---
 
-## Paginas Afectadas
+## Dados na Base de Dados
 
-| Pagina | Usa ArticleFilters | Estado |
-|--------|-------------------|--------|
-| /admin | Nao | Funciona |
-| /admin/inbox | Sim | Quebrada |
-| /admin/pending | Sim | Quebrada |
-| /admin/editing | Sim | Quebrada |
-| /admin/scheduled | Sim | Quebrada |
-| /admin/published | Sim | Quebrada |
-| /admin/sources | Nao | Funciona |
-| /admin/ads | Nao | Funciona |
-| /admin/agent | Nao | Funciona |
-| /admin/team | Nao | Funciona |
-| /admin/settings | Nao | Funciona |
+Confirmado pela query directa:
+- **25 artigos** existem com status `captured`
+- **is_duplicate = false** em todos
+- **RLS esta configurado** - requer `has_any_role(auth.uid())` para SELECT
 
 ---
 
-## Solucao
+## Plano de Correccao
 
-Substituir todas as strings vazias por uma string especial como `"__all__"` ou `"all"` e depois tratar essa string na logica de filtros.
+### Correccao 1: Estabilizar ArticleFilters
 
-### Antes (Quebrado)
-
-```tsx
-<SelectItem value="">Todas as fontes</SelectItem>
-```
-
-### Depois (Correcto)
+Modificar `src/admin/components/pipeline/ArticleFilters.tsx`:
 
 ```tsx
-<SelectItem value="__all__">Todas as fontes</SelectItem>
+// ANTES - causa loop infinito
+useEffect(() => {
+  onFilterChange(filters);
+}, [filters]);
+
+// DEPOIS - usar useCallback para estabilizar
+// E remover o useEffect que chama onFilterChange em cada mudanca
+// Em vez disso, chamar onFilterChange directamente no updateFilter
 ```
 
-E na logica de filtros, converter `"__all__"` para `""` (vazio) antes de passar aos hooks.
+Abordagem:
+- Remover o `useEffect` que observa `filters`
+- Chamar `onFilterChange` directamente dentro de `updateFilter` e `clearFilters`
+- Usar `useCallback` se necessario para evitar re-renders
 
----
+### Correccao 2: Estabilizar useArticles
 
-## Plano de Implementacao
-
-### Passo 1: Corrigir ArticleFilters.tsx
-
-Modificar o componente para usar `"__all__"` em vez de `""`:
+Modificar `src/admin/hooks/useArticles.ts`:
 
 ```tsx
-// Constante para valor "todos"
-const ALL_VALUE = "__all__";
+// ANTES - status muda de referencia a cada render
+useEffect(() => {
+  fetchArticles();
+}, [status, limit, search, sourceId, category, showDuplicates]);
 
-// Nos SelectItem
-<SelectItem value={ALL_VALUE}>Todas as fontes</SelectItem>
-<SelectItem value={ALL_VALUE}>Todas as categorias</SelectItem>
-<SelectItem value={ALL_VALUE}>Todos os estados</SelectItem>
+// DEPOIS - serializar status para string para comparacao estavel
+const statusKey = Array.isArray(status) ? status.sort().join(',') : (status || '');
 
-// Na funcao updateFilter, converter __all__ para ""
-const updateFilter = (key: keyof ArticleFiltersState, value: any) => {
-  const actualValue = value === ALL_VALUE ? '' : value;
-  setFilters(prev => ({ ...prev, [key]: actualValue }));
-};
-
-// No Select value, converter "" para __all__
-<Select 
-  value={filters.sourceId || ALL_VALUE} 
-  onValueChange={(v) => updateFilter('sourceId', v)}
->
+useEffect(() => {
+  fetchArticles();
+}, [statusKey, limit, search, sourceId, category, showDuplicates]);
 ```
 
-### Passo 2: Verificar Outros Componentes
+### Correccao 3: Evitar Re-mount do ArticleFilters
 
-Verificar se outros componentes usam o mesmo padrao:
-- `src/admin/components/editor/PublishPanel.tsx` (linha 136)
-- `src/admin/pages/AdsPage.tsx` (linha 473)
+Nas paginas (InboxPage, PendingPage, etc), garantir que o estado dos filtros nao causa re-mount:
+
+```tsx
+// Usar useMemo para estabilizar as opcoes passadas ao useArticles
+const articleOptions = useMemo(() => ({
+  status: ['captured', 'rewritten'] as const,
+  search: filters.search || undefined,
+  sourceId: filters.sourceId || undefined,
+  category: filters.category || undefined,
+  showDuplicates: filters.showDuplicates,
+}), [filters.search, filters.sourceId, filters.category, filters.showDuplicates]);
+
+const { articles, isLoading, updateStatus } = useArticles(articleOptions);
+```
+
+### Correccao 4: Debounce na Pesquisa
+
+Adicionar debounce no campo de pesquisa para evitar fetches excessivos:
+
+```tsx
+const [searchInput, setSearchInput] = useState('');
+const debouncedSearch = useDebounce(searchInput, 300);
+
+useEffect(() => {
+  updateFilter('search', debouncedSearch);
+}, [debouncedSearch]);
+```
 
 ---
 
 ## Ficheiros a Modificar
 
-```text
-src/admin/components/pipeline/ArticleFilters.tsx   # Substituir value="" por value="__all__"
+| Ficheiro | Alteracao |
+|----------|-----------|
+| `src/admin/components/pipeline/ArticleFilters.tsx` | Remover useEffect loop, chamar callback directamente |
+| `src/admin/hooks/useArticles.ts` | Serializar status para string, usar useMemo |
+| `src/admin/pages/InboxPage.tsx` | Adicionar useMemo para opcoes |
+| `src/admin/pages/PendingPage.tsx` | Adicionar useMemo para opcoes |
+| `src/admin/pages/EditingPage.tsx` | Adicionar useMemo para opcoes |
+| `src/admin/pages/ScheduledPage.tsx` | Adicionar useMemo para opcoes |
+| `src/admin/pages/PublishedPage.tsx` | Adicionar useMemo para opcoes |
+| `src/hooks/useDebounce.ts` | NOVO - hook de debounce |
+
+---
+
+## Detalhes Tecnicos
+
+### Hook useDebounce
+
+```tsx
+// src/hooks/useDebounce.ts
+import { useState, useEffect } from 'react';
+
+export function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+```
+
+### ArticleFilters Corrigido
+
+```tsx
+const updateFilter = (key: keyof ArticleFiltersState, value: any) => {
+  const actualValue = value === ALL_VALUE ? '' : value;
+  const newFilters = { ...filters, [key]: actualValue };
+  setFilters(newFilters);
+  onFilterChange(newFilters); // Chamar directamente, sem useEffect
+};
+
+const clearFilters = () => {
+  const resetFilters = {
+    search: '',
+    sourceId: '',
+    category: '',
+    status: '',
+    showDuplicates: false,
+  };
+  setFilters(resetFilters);
+  onFilterChange(resetFilters); // Chamar directamente
+};
+
+// REMOVER este useEffect:
+// useEffect(() => {
+//   onFilterChange(filters);
+// }, [filters]);
+```
+
+### useArticles Corrigido
+
+```tsx
+export function useArticles(options: UseArticlesOptions = {}) {
+  const { status, limit = 50, search, sourceId, category, showDuplicates = false } = options;
+  
+  // Serializar status para comparacao estavel
+  const statusKey = useMemo(() => {
+    if (!status) return '';
+    return Array.isArray(status) ? status.sort().join(',') : status;
+  }, [status]);
+
+  // ... resto do codigo ...
+
+  useEffect(() => {
+    fetchArticles();
+  }, [statusKey, limit, search, sourceId, category, showDuplicates]);
 ```
 
 ---
 
 ## Resultado Esperado
 
-Apos a correccao:
-- /admin/inbox - Vai funcionar
-- /admin/pending - Vai funcionar
-- /admin/editing - Vai funcionar
-- /admin/scheduled - Vai funcionar
-- /admin/published - Vai funcionar
+Apos as correccoes:
+1. As paginas carregam os dados uma unica vez
+2. Nao ha mais "piscar" ou loops infinitos
+3. Os filtros funcionam correctamente sem re-fetches excessivos
+4. A pesquisa tem debounce para melhor performance
 
 ---
 
-## Alternativa: Usar SelectTrigger sem SelectItem vazio
+## Sequencia de Implementacao
 
-Em vez de criar um item "Todos", podemos usar apenas o `placeholder` do `SelectValue` e adicionar um botao de limpar:
-
-```tsx
-<Select value={filters.sourceId || undefined} onValueChange={...}>
-  <SelectTrigger>
-    <SelectValue placeholder="Todas as fontes" />
-  </SelectTrigger>
-  <SelectContent>
-    {sources.map(...)}
-  </SelectContent>
-</Select>
-```
-
-Esta abordagem tambem resolve o problema, mas perde a capacidade de "limpar" atraves do dropdown.
-
----
-
-## Recomendacao
-
-A solucao com `"__all__"` e a mais robusta porque:
-1. Mantem a UX de poder seleccionar "Todos" no dropdown
-2. Resolve o bug do Radix Select
-3. E consistente com outras implementacoes
+1. Criar hook `useDebounce`
+2. Corrigir `ArticleFilters.tsx` - remover useEffect problematico
+3. Corrigir `useArticles.ts` - estabilizar dependencias
+4. Actualizar todas as paginas do pipeline com useMemo
+5. Testar cada pagina para confirmar que carrega dados sem loops
 
