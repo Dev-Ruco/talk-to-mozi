@@ -59,7 +59,7 @@ export function NewsFeed({ categoryFilter, initialCount = 6 }: NewsFeedProps) {
   // Loading state
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-[600px] space-y-4">
+      <div className="mx-auto max-w-2xl space-y-4">
         <div className="flex flex-col gap-4">
           {[...Array(3)].map((_, i) => (
             <Skeleton key={i} className="h-64 w-full rounded-xl" />
@@ -100,7 +100,7 @@ export function NewsFeed({ categoryFilter, initialCount = 6 }: NewsFeedProps) {
   const getAdIndex = (index: number) => Math.floor(index / 9) % sponsoredAds.length;
 
   return (
-    <div className="mx-auto max-w-[600px] space-y-4">
+    <div className="mx-auto max-w-2xl space-y-4">
       {/* Single column, vertical scroll feed */}
       <div className="flex flex-col gap-4">
         {displayedArticles.map((article, index) => (
