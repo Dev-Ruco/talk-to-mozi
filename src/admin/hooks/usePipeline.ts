@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Tables } from '@/integrations/supabase/types';
@@ -39,7 +39,7 @@ export function usePipeline() {
       if (error) throw error;
       return data as PipelineArticle[];
     },
-    staleTime: 10000,
+    staleTime: 60000, // 60 seconds - Realtime will handle updates
   });
 
   // Fetch rewrite queue
@@ -56,17 +56,26 @@ export function usePipeline() {
       if (error) throw error;
       return data as RewriteQueueItem[];
     },
-    staleTime: 5000,
+    staleTime: 30000, // 30 seconds - Realtime will handle updates
   });
 
-  // Set up realtime subscriptions
+  // Stable refetch callbacks to avoid re-subscription
+  const refetchArticlesRef = useRef(refetchArticles);
+  const refetchQueueRef = useRef(refetchQueue);
+  
+  useEffect(() => {
+    refetchArticlesRef.current = refetchArticles;
+    refetchQueueRef.current = refetchQueue;
+  }, [refetchArticles, refetchQueue]);
+
+  // Set up realtime subscriptions - stable dependencies
   useEffect(() => {
     const articlesChannel = supabase
       .channel('pipeline_articles_realtime')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'articles' },
         () => {
-          refetchArticles();
+          refetchArticlesRef.current();
         }
       )
       .subscribe();
@@ -76,7 +85,7 @@ export function usePipeline() {
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'rewrite_queue' },
         (payload) => {
-          refetchQueue();
+          refetchQueueRef.current();
           if (payload.eventType === 'UPDATE') {
             const record = payload.new as RewriteQueueItem;
             if (record.status === 'processing') {
@@ -93,7 +102,7 @@ export function usePipeline() {
       supabase.removeChannel(articlesChannel);
       supabase.removeChannel(queueChannel);
     };
-  }, [refetchArticles, refetchQueue]);
+  }, []); // No dependencies - use refs for stable callbacks
 
   // Add to rewrite queue and trigger processing
   const addToQueue = useMutation({

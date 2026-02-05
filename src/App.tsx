@@ -24,7 +24,15 @@ import SettingsPage from "./admin/pages/SettingsPage";
 import ArticleEditorPage from "./admin/pages/ArticleEditorPage";
 import MediaPage from "./admin/pages/MediaPage";
 
-const queryClient = new QueryClient();
+// Create QueryClient outside component to prevent recreation on every render
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30000, // 30 seconds
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
