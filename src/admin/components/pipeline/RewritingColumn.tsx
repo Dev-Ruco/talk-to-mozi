@@ -13,6 +13,8 @@ interface RewritingColumnProps {
   processingItem: RewriteQueueItem | null;
   queuedItems: Array<RewriteQueueItem & { article?: PipelineArticle }>;
   onSkipQueue: (articleId: string) => void;
+  onForceRewrite: (articleId: string) => void;
+  onTriggerProcessQueue: () => void;
 }
 
 export function RewritingColumn({
@@ -20,10 +22,13 @@ export function RewritingColumn({
   processingItem,
   queuedItems,
   onSkipQueue,
+  onForceRewrite,
+  onTriggerProcessQueue,
 }: RewritingColumnProps) {
   const [progress, setProgress] = useState(0);
   const [countdown, setCountdown] = useState<number>(0);
   const [elapsedTime, setElapsedTime] = useState<string>('0:00');
+  const [isTriggering, setIsTriggering] = useState(false);
   const { data: agentSettings } = useAgentSettings();
   const totalCount = (processingArticle ? 1 : 0) + queuedItems.length;
 
@@ -52,7 +57,7 @@ export function RewritingColumn({
     }
   }, [processingItem?.started_at]);
 
-  // Countdown timer for next processing
+  // Countdown timer for next processing - WITH AUTO TRIGGER
   useEffect(() => {
     if (!processingArticle && queuedItems.length > 0 && agentSettings) {
       const intervalMinutes = parseInt(agentSettings.rewrite_interval_minutes) || 2;
@@ -62,14 +67,23 @@ export function RewritingColumn({
       
       const timer = setInterval(() => {
         setCountdown(prev => {
-          if (prev <= 1) return intervalSeconds;
+          if (prev <= 1) {
+            // TRIGGER PROCESS QUEUE when countdown reaches zero!
+            if (!isTriggering) {
+              setIsTriggering(true);
+              onTriggerProcessQueue();
+              // Reset triggering state after a delay
+              setTimeout(() => setIsTriggering(false), 5000);
+            }
+            return intervalSeconds; // Reset counter
+          }
           return prev - 1;
         });
       }, 1000);
       
       return () => clearInterval(timer);
     }
-  }, [processingArticle, queuedItems.length, agentSettings]);
+  }, [processingArticle, queuedItems.length, agentSettings, onTriggerProcessQueue, isTriggering]);
 
   // Simulate progress animation when processing
   useEffect(() => {
@@ -169,18 +183,19 @@ export function RewritingColumn({
                   <Zap className="h-3 w-3" />
                   FILA DE ESPERA ({queuedItems.length})
                 </div>
-                {queuedItems.map((item, index) => (
-                  item.article && (
-                    <PipelineCard
-                      key={item.id}
-                      article={item.article}
-                      isQueued
-                      queuePosition={index + 1}
-                      showCheckbox={false}
-                      onSkipQueue={() => onSkipQueue(item.article_id)}
-                    />
-                  )
-                ))}
+            {queuedItems.map((item, index) => (
+              item.article && (
+                <PipelineCard
+                  key={item.id}
+                  article={item.article}
+                  isQueued
+                  queuePosition={index + 1}
+                  showCheckbox={false}
+                  onSkipQueue={() => onSkipQueue(item.article_id)}
+                  onForceRewrite={() => onForceRewrite(item.article_id)}
+                />
+              )
+            ))}
               </div>
             )}
           </div>

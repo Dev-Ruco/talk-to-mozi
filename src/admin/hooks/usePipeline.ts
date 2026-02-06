@@ -249,6 +249,65 @@ export function usePipeline() {
     },
   });
 
+  // Force rewrite - move to top of queue and trigger immediately
+  const forceRewrite = useMutation({
+    mutationFn: async (articleId: string) => {
+      // 1. Check if already in queue
+      const { data: existing } = await supabase
+        .from('rewrite_queue')
+        .select('id')
+        .eq('article_id', articleId)
+        .in('status', ['queued', 'processing'])
+        .single();
+
+      if (existing) {
+        // Update priority to very high
+        await supabase
+          .from('rewrite_queue')
+          .update({ priority: 9999 })
+          .eq('id', existing.id);
+      } else {
+        // Insert with high priority
+        const { error } = await supabase
+          .from('rewrite_queue')
+          .insert({ article_id: articleId, priority: 9999 });
+        if (error) throw error;
+      }
+
+      // 2. Check if something is processing
+      const { data: processing } = await supabase
+        .from('rewrite_queue')
+        .select('id')
+        .eq('status', 'processing')
+        .limit(1);
+
+      // 3. If nothing is processing, trigger immediately
+      if (!processing || processing.length === 0) {
+        await supabase.functions.invoke('process-queue', {
+          body: { article_id: articleId }
+        });
+      }
+      // If busy, article is at top and will be next
+    },
+    onSuccess: () => {
+      toast.success('Reformulação iniciada');
+      refetchQueue();
+    },
+    onError: () => {
+      toast.error('Erro ao forçar reformulação');
+    },
+  });
+
+  // Trigger process queue (for countdown trigger)
+  const triggerProcessQueue = useMutation({
+    mutationFn: async () => {
+      await supabase.functions.invoke('process-queue');
+    },
+    onError: (error) => {
+      console.log('Process queue trigger failed:', error);
+    },
+  });
+
   // Organize articles by column
   const inboxArticles = articles.filter(a => a.status === 'captured');
   const pendingArticles = articles.filter(a => 
@@ -290,11 +349,14 @@ export function usePipeline() {
     deleteArticles: deleteArticles.mutate,
     publishArticle: publishArticle.mutate,
     unpublishArticle: unpublishArticle.mutate,
+    forceRewrite: forceRewrite.mutate,
+    triggerProcessQueue: triggerProcessQueue.mutate,
     
     // Pending states
     isAddingToQueue: addToQueue.isPending,
     isDeleting: deleteArticles.isPending,
     isPublishing: publishArticle.isPending,
+    isForceRewriting: forceRewrite.isPending,
     
     // Refetch
     refetch: () => {
