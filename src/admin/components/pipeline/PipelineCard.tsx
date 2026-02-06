@@ -33,6 +33,7 @@ interface PipelineCardProps {
   onSelect?: (selected: boolean) => void;
   onRewrite?: () => void;
   onSkipQueue?: () => void;
+  onForceRewrite?: () => void;
   onDelete?: () => void;
   onPublish?: () => void;
   onUnpublish?: () => void;
@@ -49,6 +50,7 @@ export function PipelineCard({
   onSelect,
   onRewrite,
   onSkipQueue,
+  onForceRewrite,
   onDelete,
   onPublish,
   onUnpublish,
@@ -152,6 +154,19 @@ export function PipelineCard({
             {timeAgo}
           </div>
         </div>
+
+        {/* Force rewrite button for queued items */}
+        {isQueued && !isProcessing && onForceRewrite && (
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={(e) => { e.stopPropagation(); onForceRewrite(); }}
+            className="h-7 w-7 text-primary hover:bg-primary/20"
+            title="Forçar reformulação agora"
+          >
+            <Zap className="h-4 w-4" />
+          </Button>
+        )}
 
         {/* Actions dropdown */}
         <DropdownMenu>

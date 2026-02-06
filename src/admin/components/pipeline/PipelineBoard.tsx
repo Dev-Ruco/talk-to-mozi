@@ -39,6 +39,8 @@ export function PipelineBoard() {
     deleteArticles,
     publishArticle,
     unpublishArticle,
+    forceRewrite,
+    triggerProcessQueue,
     isAddingToQueue,
     isDeleting,
     refetch,
@@ -165,6 +167,8 @@ export function PipelineBoard() {
           processingItem={processingItem || null}
           queuedItems={queuedArticles}
           onSkipQueue={skipQueue}
+          onForceRewrite={forceRewrite}
+          onTriggerProcessQueue={triggerProcessQueue}
         />
 
         {/* Pending Column */}
