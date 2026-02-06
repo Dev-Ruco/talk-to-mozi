@@ -1,229 +1,253 @@
 
-# Correção: Automação da Fila de Reformulação + Forçar Reformulação
+# Notícias Visuais (Image-First) — Plano de Implementação
 
-## Diagnóstico do Problema
+## Visão Geral
 
-### Problema Actual
-1. O **contador de tempo** (`0:45`, `1:30`, etc.) na coluna "Em Reformulação" é **apenas visual** — não dispara nenhuma acção
-2. Quando o tempo chega a zero, ele simplesmente reinicia o contador sem processar os artigos
-3. Não existe nenhum cron job configurado para chamar automaticamente o `process-queue`
-4. A reformulação só acontece quando alguém clica manualmente ou adiciona um artigo à fila
-
-### Causa Raiz
-- A Edge Function `process-queue` só é chamada **manualmente** (quando utilizador adiciona artigo à fila)
-- Não há automação do lado do servidor (pg_cron) para processar a fila periodicamente
-- O countdown do UI não está ligado a nenhuma acção real
+Adicionar um novo tipo de conteúdo "Notícia Visual" ao B NEWS, baseado em carrosseis de imagens (ate 6), com dois formatos (vertical imersivo e horizontal classico). O artigo completo existe apenas como base de conhecimento para o chat.
 
 ---
 
-## Solução Completa
+## Fase 1: Base de Dados
 
-### Parte 1: Cron Jobs (Processamento Automático Sempre)
+### Migracaco SQL
 
-Criar dois cron jobs no Supabase usando `pg_cron` + `pg_net`:
+Adicionar 3 novos campos a tabela `articles`:
 
-| Cron Job | Função | Intervalo |
-|----------|--------|-----------|
-| `process-rewrite-queue` | Chama `process-queue` | A cada 2 minutos |
-| `news-agent-capture` | Chama `news-agent` (captura RSS) | A cada 5 minutos |
+| Campo | Tipo | Default | Descricao |
+|-------|------|---------|-----------|
+| `content_type` | `text` | `'article'` | `'article'` ou `'visual'` |
+| `visual_format` | `text` | `null` | `'vertical'` ou `'horizontal'` |
+| `gallery_urls` | `text[]` | `null` | Array de URLs de imagens (ate 6) |
 
-**SQL para configurar:**
 ```sql
--- Habilitar extensões necessárias
-CREATE EXTENSION IF NOT EXISTS pg_cron;
-CREATE EXTENSION IF NOT EXISTS pg_net;
-
--- Cron job para processar fila de reformulação (a cada 2 minutos)
-SELECT cron.schedule(
-  'process-rewrite-queue',
-  '*/2 * * * *',
-  $$
-  SELECT net.http_post(
-    url := 'https://kwwzfhpamciilgmknsov.supabase.co/functions/v1/process-queue',
-    headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."}',
-    body := '{}'::jsonb
-  ) AS request_id;
-  $$
-);
+ALTER TABLE public.articles
+  ADD COLUMN content_type text NOT NULL DEFAULT 'article',
+  ADD COLUMN visual_format text,
+  ADD COLUMN gallery_urls text[];
 ```
 
 ---
 
-### Parte 2: Botão "Forçar Reformulação" + Trigger Imediato
+## Fase 2: Tipos TypeScript
 
-#### 2.1 Modificar `PipelineCard.tsx`
-Adicionar prop `onForceRewrite` e botão visível para artigos na fila:
+### 2.1 `src/types/news.ts`
 
-```tsx
-// Novo botão na secção de acções (para artigos na fila)
-{isQueued && !isProcessing && onForceRewrite && (
-  <Button
-    size="icon"
-    variant="ghost"
-    onClick={(e) => { e.stopPropagation(); onForceRewrite(); }}
-    className="h-7 w-7 text-primary hover:bg-primary/20"
-    title="Forçar reformulação agora"
-  >
-    <Zap className="h-4 w-4" />
-  </Button>
-)}
+Adicionar campos ao tipo `Article`:
+
+```typescript
+export interface Article {
+  // ... campos existentes ...
+  contentType: 'article' | 'visual';
+  visualFormat?: 'vertical' | 'horizontal';
+  galleryUrls?: string[];
+}
 ```
 
-#### 2.2 Nova função `forceRewrite` no `usePipeline.ts`
-Esta função move o artigo para o topo da fila com prioridade máxima e **dispara imediatamente** o `process-queue`:
+### 2.2 `src/admin/types/admin.ts`
 
-```tsx
-const forceRewrite = useMutation({
-  mutationFn: async (articleId: string) => {
-    // 1. Definir prioridade muito alta (9999)
-    const { data: existing } = await supabase
-      .from('rewrite_queue')
-      .select('id')
-      .eq('article_id', articleId)
-      .in('status', ['queued', 'processing'])
-      .single();
+Adicionar campos ao tipo `Article` do admin:
 
-    if (existing) {
-      await supabase
-        .from('rewrite_queue')
-        .update({ priority: 9999 })
-        .eq('id', existing.id);
-    }
-
-    // 2. Verificar se algo está a processar
-    const { data: processing } = await supabase
-      .from('rewrite_queue')
-      .select('id')
-      .eq('status', 'processing')
-      .limit(1);
-
-    // 3. Se ninguém está a processar, disparar imediatamente
-    if (!processing || processing.length === 0) {
-      await supabase.functions.invoke('process-queue', {
-        body: { article_id: articleId }
-      });
-    }
-    // Se estiver ocupado, o artigo fica no topo e será o próximo
-  },
-  onSuccess: () => {
-    toast.success('Reformulação iniciada');
-    refetchQueue();
-  },
-});
+```typescript
+export interface Article {
+  // ... campos existentes ...
+  content_type: 'article' | 'visual';
+  visual_format: 'vertical' | 'horizontal' | null;
+  gallery_urls: string[] | null;
+}
 ```
 
-#### 2.3 Modificar `RewritingColumn.tsx`
-- Passar a nova função `onForceRewrite` para os cards
-- Quando countdown chega a 0, **disparar o process-queue** (backup para quando dashboard está aberto)
+### 2.3 `src/hooks/usePublishedArticles.ts`
 
-```tsx
-// Effect para countdown COM trigger automático
-useEffect(() => {
-  if (!processingArticle && queuedItems.length > 0 && agentSettings) {
-    const intervalMinutes = parseInt(agentSettings.rewrite_interval_minutes) || 2;
-    const intervalSeconds = intervalMinutes * 60;
-    
-    setCountdown(intervalSeconds);
-    
-    const timer = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          // DISPARAR REFORMULAÇÃO quando chegar a zero!
-          triggerProcessQueue();
-          return intervalSeconds; // Reiniciar contador
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    
-    return () => clearInterval(timer);
-  }
-}, [processingArticle, queuedItems.length, agentSettings]);
+Actualizar `adaptArticle` para mapear os novos campos:
 
-// Função para disparar edge function
-const triggerProcessQueue = async () => {
-  try {
-    await supabase.functions.invoke('process-queue');
-  } catch (e) {
-    console.log('Cron job will handle this');
-  }
-};
+```typescript
+export function adaptArticle(dbArticle: PublishedArticle): Article {
+  return {
+    // ... existentes ...
+    contentType: (dbArticle as any).content_type || 'article',
+    visualFormat: (dbArticle as any).visual_format || undefined,
+    galleryUrls: (dbArticle as any).gallery_urls || [],
+  };
+}
 ```
 
 ---
 
-### Parte 3: UI Melhorada para Cards na Fila
+## Fase 3: Componentes Frontend (Publico)
 
-Cada card na fila terá:
-1. **Posição na fila** (número)
-2. **Botão de forçar** (ícone Zap/relâmpago)
-3. **Menu dropdown** com opções
+### 3.1 Novo componente: `src/components/news/VisualCarousel.tsx`
+
+Componente de carousel com dois modos:
+
+**Vertical Imersivo (aspect ratio 4:5):**
+- Imagem central em destaque (grande)
+- Imagens laterais parcialmente visiveis e reduzidas
+- Ao deslizar, a proxima imagem cresce para o centro
+- Usa `embla-carousel-react` (ja instalado)
+
+**Horizontal Classico (aspect ratio 16:9):**
+- Carousel standard com dots indicadores
+- Navegacao por swipe/setas
+
+```typescript
+interface VisualCarouselProps {
+  images: string[];
+  format: 'vertical' | 'horizontal';
+  className?: string;
+}
+```
+
+### 3.2 Modificar `src/components/news/NewsCard.tsx`
+
+Adicionar logica condicional para `article.contentType === 'visual'`:
 
 ```text
-┌────────────────────────────────────────────────────────────────┐
-│ 1   Título do artigo que está na fila...        [⚡] [...]     │
-│     Jornal Notícias | Alta | Nacional                          │
-│     ⏱️ há aproximadamente 18 horas                             │
-└────────────────────────────────────────────────────────────────┘
+SE contentType === 'visual':
+  +----------------------------------+
+  | [ CAROUSEL DE IMAGENS ]           |
+  |                                    |
+  | Categoria                          |
+  | Titulo da noticia                  |
+  |                                    |
+  | [ Explorar a noticia ]     [share] |
+  +----------------------------------+
+
+  - NAO mostrar summary/lead
+  - Substituir imagem unica pelo VisualCarousel
+  - Manter botao "Explorar a noticia" e share
+
+SE contentType === 'article':
+  - Comportamento actual (sem alteracoes)
+```
+
+### 3.3 Modificar `src/pages/ArticlePage.tsx`
+
+Para noticias visuais, o layout muda:
+
+```text
+SE contentType === 'visual':
+  1. Voltar
+  2. VisualCarousel (grande, imersivo)
+  3. Titulo
+  4. Categoria + Data
+  5. Botao flutuante mobile: "Explorar esta noticia"
+  6. ArticleChat (com perguntas sugeridas)
+
+  NAO mostrar:
+  - Summary/lead
+  - Conteudo textual
+  - Quick Facts (ficam para o chat responder)
+  - Reading time (nao relevante)
+
+SE contentType === 'article':
+  - Layout actual (sem alteracoes)
 ```
 
 ---
+
+## Fase 4: Dashboard / CRM (Admin)
+
+### 4.1 Botao "Criar como Noticia Visual" no Pipeline
+
+Modificar `src/admin/components/pipeline/PipelineCard.tsx`:
+- Adicionar opcao no dropdown menu dos artigos Pendentes:
+  - "Converter em Noticia Visual" (icone Camera/Image)
+  - Navega para `/admin/article/{id}?visual=true`
+
+### 4.2 Novo componente: `src/admin/components/editor/VisualEditor.tsx`
+
+Ecra dedicado para editar Noticias Visuais:
+
+```text
++--------------------------------------------------+
+| EDITOR VISUAL                                      |
+|                                                    |
+| Tipo: [Vertical Imersivo] [Horizontal Classico]   |
+|                                                    |
+| +--------+ +--------+ +--------+                  |
+| |  Img 1 | |  Img 2 | |  Img 3 |                  |
+| |  [x]   | |  [x]   | |  [x]   |  + Adicionar    |
+| +--------+ +--------+ +--------+                  |
+|                                                    |
+| Preview do Carousel em tempo real                  |
+|                                                    |
+| Titulo: [____________________________]             |
+| Categoria: [dropdown]                              |
+|                                                    |
+| [Guardar Rascunho]  [Publicar]                     |
++--------------------------------------------------+
+```
+
+Funcionalidades:
+- Upload multiplo (drag and drop) via `MediaPicker` existente
+- Reordenar imagens (drag)
+- Remover imagens individuais
+- Preview do carousel no formato seleccionado
+- Maximo 6 imagens
+- Campo titulo e selector de categoria
+
+### 4.3 Modificar `src/admin/components/editor/ArticleEditor.tsx`
+
+Adicionar toggle entre editor normal e editor visual:
+- Se `content_type === 'visual'`, mostrar `VisualEditor` em vez do `ContentPanel`
+- Se `content_type === 'article'`, manter layout actual
+
+### 4.4 Modificar `src/admin/components/editor/PublishPanel.tsx`
+
+Adicionar selector de tipo de conteudo:
+
+```text
+Tipo de Conteudo:
+  [Artigo Normal]  [Noticia Visual]
+```
+
+Quando muda para "Noticia Visual":
+- Oculta campos de lead, conteudo textual, quick facts
+- Mostra upload de galeria
+
+### 4.5 Modificar `src/admin/pages/ArticleEditorPage.tsx`
+
+Actualizar `handleSave` para incluir os novos campos na gravacao:
+- `content_type`
+- `visual_format`
+- `gallery_urls`
+
+---
+
+## Fase 5: Integracao com IA
+
+Sem alteracoes necessarias. O artigo reformulado continua a existir na base de dados com `content` preenchido. O chat (`ArticleChat`) ja utiliza o conteudo do artigo para responder, independentemente do `content_type`.
+
+---
+
+## Ficheiros a Criar
+
+| Ficheiro | Descricao |
+|----------|-----------|
+| `src/components/news/VisualCarousel.tsx` | Carousel com modos vertical/horizontal |
+| `src/admin/components/editor/VisualEditor.tsx` | Editor de galeria para noticias visuais |
 
 ## Ficheiros a Modificar
 
-| Ficheiro | Alteração |
+| Ficheiro | Alteracao |
 |----------|-----------|
-| `src/admin/components/pipeline/RewritingColumn.tsx` | Adicionar trigger automático quando countdown=0; passar `onForceRewrite` para cards |
-| `src/admin/components/pipeline/PipelineCard.tsx` | Adicionar botão `[⚡]` para forçar reformulação; nova prop `onForceRewrite` |
-| `src/admin/hooks/usePipeline.ts` | Adicionar mutation `forceRewrite` que dispara imediatamente |
-| `src/admin/components/pipeline/PipelineBoard.tsx` | Passar `onForceRewrite` para RewritingColumn |
-| **SQL (pg_cron)** | Configurar cron jobs para automação 24/7 |
+| **SQL Migration** | Adicionar `content_type`, `visual_format`, `gallery_urls` |
+| `src/types/news.ts` | Novos campos no tipo `Article` |
+| `src/admin/types/admin.ts` | Novos campos no tipo `Article` admin |
+| `src/hooks/usePublishedArticles.ts` | Mapear novos campos em `adaptArticle` |
+| `src/components/news/NewsCard.tsx` | Renderizar carousel para tipo visual |
+| `src/pages/ArticlePage.tsx` | Layout diferente para noticias visuais |
+| `src/admin/components/editor/ArticleEditor.tsx` | Toggle entre editor normal e visual |
+| `src/admin/components/editor/PublishPanel.tsx` | Selector de tipo de conteudo |
+| `src/admin/pages/ArticleEditorPage.tsx` | Gravar novos campos |
+| `src/admin/components/pipeline/PipelineCard.tsx` | Opcao "Converter em Noticia Visual" |
 
 ---
 
-## Fluxo Final
+## Notas Tecnicas
 
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│                      AUTOMAÇÃO COMPLETA                             │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  pg_cron (a cada 2 minutos) ────────────────────┐                   │
-│                                                  │                   │
-│  Dashboard aberto (countdown=0) ────────────────┼──► process-queue  │
-│                                                  │                   │
-│  Botão "Forçar reformulação" ───────────────────┘        │          │
-│                                                          │          │
-│                                                          ▼          │
-│                                                 ┌────────────────┐  │
-│                                                 │ Próximo artigo │  │
-│                                                 │ da fila (maior │  │
-│                                                 │ prioridade)    │  │
-│                                                 └────────────────┘  │
-│                                                          │          │
-│                                                          ▼          │
-│                                                 ┌────────────────┐  │
-│                                                 │ Reformulação   │  │
-│                                                 │ com IA         │  │
-│                                                 └────────────────┘  │
-│                                                          │          │
-│                                                          ▼          │
-│                                                 ┌────────────────┐  │
-│                                                 │ status =       │  │
-│                                                 │ 'rewritten'    │  │
-│                                                 └────────────────┘  │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Checklist de Validação
-
-- [ ] Cron jobs configurados com pg_cron
-- [ ] Quando countdown chega a 0, dispara process-queue automaticamente
-- [ ] Botão "⚡" visível em cada artigo na fila
-- [ ] Clicar em "⚡" inicia reformulação imediatamente (se agente livre)
-- [ ] Clicar em "⚡" move para topo da fila (se agente ocupado)
-- [ ] Artigos passam de "Em Reformulação" para "Pendentes" após reformulação
-- [ ] Sistema funciona 24/7 mesmo com dashboard fechado
+- O `embla-carousel-react` e `embla-carousel-autoplay` ja estao instalados como dependencias
+- O bucket `article-images` do Storage ja existe para armazenar as imagens da galeria
+- O `MediaPicker` existente sera reutilizado para seleccionar/carregar imagens
+- As RLS policies existentes na tabela `articles` aplicam-se automaticamente aos novos campos
+- O Supabase Realtime ja esta configurado para a tabela `articles`
