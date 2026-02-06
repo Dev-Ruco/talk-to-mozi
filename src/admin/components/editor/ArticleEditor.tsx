@@ -6,6 +6,7 @@ import {
 import { Article } from '../../types/admin';
 import { SourcePanel } from './SourcePanel';
 import { ContentPanel } from './ContentPanel';
+import { VisualEditor } from './VisualEditor';
 import { PublishPanel } from './PublishPanel';
 
 interface ArticleEditorProps {
@@ -25,6 +26,8 @@ export function ArticleEditor({
   onSchedule,
   isSaving,
 }: ArticleEditorProps) {
+  const isVisual = article.content_type === 'visual';
+
   return (
     <ResizablePanelGroup direction="horizontal" className="h-full">
       {/* Source Panel - 25% */}
@@ -36,7 +39,11 @@ export function ArticleEditor({
       
       {/* Content Panel - 50% */}
       <ResizablePanel defaultSize={50} minSize={30}>
-        <ContentPanel article={article} onUpdate={onUpdate} />
+        {isVisual ? (
+          <VisualEditor article={article} onUpdate={onUpdate} />
+        ) : (
+          <ContentPanel article={article} onUpdate={onUpdate} />
+        )}
       </ResizablePanel>
       
       <ResizableHandle withHandle />

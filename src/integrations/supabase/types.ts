@@ -92,9 +92,11 @@ export type Database = {
           category: string | null
           confidence_score: number | null
           content: string | null
+          content_type: string
           created_at: string | null
           duplicate_of: string | null
           editor_id: string | null
+          gallery_urls: string[] | null
           highlight_type: string | null
           id: string
           image_caption: string | null
@@ -116,6 +118,7 @@ export type Database = {
           tags: string[] | null
           title: string | null
           updated_at: string | null
+          visual_format: string | null
         }
         Insert: {
           author?: string | null
@@ -123,9 +126,11 @@ export type Database = {
           category?: string | null
           confidence_score?: number | null
           content?: string | null
+          content_type?: string
           created_at?: string | null
           duplicate_of?: string | null
           editor_id?: string | null
+          gallery_urls?: string[] | null
           highlight_type?: string | null
           id?: string
           image_caption?: string | null
@@ -147,6 +152,7 @@ export type Database = {
           tags?: string[] | null
           title?: string | null
           updated_at?: string | null
+          visual_format?: string | null
         }
         Update: {
           author?: string | null
@@ -154,9 +160,11 @@ export type Database = {
           category?: string | null
           confidence_score?: number | null
           content?: string | null
+          content_type?: string
           created_at?: string | null
           duplicate_of?: string | null
           editor_id?: string | null
+          gallery_urls?: string[] | null
           highlight_type?: string | null
           id?: string
           image_caption?: string | null
@@ -178,6 +186,7 @@ export type Database = {
           tags?: string[] | null
           title?: string | null
           updated_at?: string | null
+          visual_format?: string | null
         }
         Relationships: [
           {

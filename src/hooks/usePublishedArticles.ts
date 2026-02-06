@@ -25,6 +25,9 @@ export function adaptArticle(dbArticle: PublishedArticle): Article {
     quickFacts: dbArticle.quick_facts || [],
     relatedArticleIds: [],
     tags: dbArticle.tags || [],
+    contentType: (dbArticle as any).content_type || 'article',
+    visualFormat: (dbArticle as any).visual_format || undefined,
+    galleryUrls: (dbArticle as any).gallery_urls || [],
   };
 }
 

@@ -98,6 +98,26 @@ export function PublishPanel({
 
       <ScrollArea className="flex-1">
         <div className="space-y-6 p-4">
+          {/* Content Type Selector */}
+          <div className="space-y-2">
+            <Label>Tipo de Conteúdo</Label>
+            <Select
+              value={article.content_type || 'article'}
+              onValueChange={(value) => onUpdate({ 
+                content_type: value as 'article' | 'visual',
+                visual_format: value === 'visual' ? (article.visual_format || 'vertical') : null,
+              })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="article">📰 Artigo Normal</SelectItem>
+                <SelectItem value="visual">📸 Notícia Visual</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Image */}
           <div className="space-y-2">
             <Label>Imagem de Capa</Label>

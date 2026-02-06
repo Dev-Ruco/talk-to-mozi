@@ -51,6 +51,10 @@ export interface Article {
   highlight_type: 'hero' | 'trending' | 'normal';
   seo_slug: string | null;
   seo_title: string | null;
+  // Notícia Visual
+  content_type: 'article' | 'visual';
+  visual_format: 'vertical' | 'horizontal' | null;
+  gallery_urls: string[] | null;
   // Estado
   status: ArticleStatus;
   confidence_score: number | null;
