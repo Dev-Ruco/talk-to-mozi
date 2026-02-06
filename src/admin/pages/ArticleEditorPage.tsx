@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AdminLayout } from '../components/layout/AdminLayout';
@@ -11,6 +11,7 @@ import { useAdminAuth } from '../hooks/useAdminAuth';
 
 export default function ArticleEditorPage() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { isAuthenticated, isLoading: authLoading } = useAdminAuth();
   
@@ -47,7 +48,13 @@ export default function ArticleEditorPage() {
       console.error('Error fetching article:', error);
       setNotFound(true);
     } else {
-      setArticle(data as unknown as Article);
+      const asArticle = data as unknown as Article;
+      // Auto-convert to visual if ?visual=true
+      if (searchParams.get('visual') === 'true' && asArticle.content_type !== 'visual') {
+        asArticle.content_type = 'visual';
+        asArticle.visual_format = 'vertical';
+      }
+      setArticle(asArticle);
     }
     setIsLoading(false);
   };
@@ -78,6 +85,9 @@ export default function ArticleEditorPage() {
         seo_title: article.seo_title,
         seo_slug: article.seo_slug,
         author: article.author,
+        content_type: article.content_type || 'article',
+        visual_format: article.visual_format,
+        gallery_urls: article.gallery_urls,
         updated_at: new Date().toISOString(),
       })
       .eq('id', article.id);
@@ -110,6 +120,9 @@ export default function ArticleEditorPage() {
         seo_title: article.seo_title,
         seo_slug: article.seo_slug,
         author: article.author,
+        content_type: article.content_type || 'article',
+        visual_format: article.visual_format,
+        gallery_urls: article.gallery_urls,
         status: 'published',
         published_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),

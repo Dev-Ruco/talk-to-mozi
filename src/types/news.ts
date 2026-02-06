@@ -26,6 +26,9 @@ export interface Article {
   quickFacts: string[];
   relatedArticleIds: string[];
   tags?: string[];
+  contentType?: 'article' | 'visual';
+  visualFormat?: 'vertical' | 'horizontal';
+  galleryUrls?: string[];
 }
 
 export interface SponsoredAd {

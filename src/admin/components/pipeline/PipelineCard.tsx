@@ -10,7 +10,8 @@ import {
   Eye,
   EyeOff,
   Zap,
-  Loader2
+  Loader2,
+  Image as ImageIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PipelineArticle } from '../../hooks/usePipeline';
@@ -184,6 +185,13 @@ export function PipelineCard({
               <Edit className="mr-2 h-4 w-4" />
               Editar
             </DropdownMenuItem>
+
+            {article.status !== 'captured' && article.status !== 'published' && (
+              <DropdownMenuItem onClick={() => navigate(`/admin/article/${article.id}?visual=true`)}>
+                <ImageIcon className="mr-2 h-4 w-4" />
+                Converter em Notícia Visual
+              </DropdownMenuItem>
+            )}
             
             {article.status === 'published' && (
               <DropdownMenuItem onClick={() => window.open(`/artigo/${article.id}`, '_blank')}>

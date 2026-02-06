@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Layout } from '@/components/layout/Layout';
 import { ArticleChat } from '@/components/news/ArticleChat';
 import { NewsCard } from '@/components/news/NewsCard';
+import { VisualCarousel } from '@/components/news/VisualCarousel';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -86,6 +87,7 @@ export default function ArticlePage() {
 
   const category = getCategoryById(article.category);
   const liked = isLiked(article.id);
+  const isVisual = article.contentType === 'visual' && article.galleryUrls && article.galleryUrls.length > 0;
 
   const handleShare = async () => {
     if (navigator.share) {
@@ -117,6 +119,97 @@ export default function ArticlePage() {
     }
   };
 
+  // Visual news layout
+  if (isVisual) {
+    return (
+      <Layout showSidebars={false}>
+        <motion.article 
+          className="mx-auto max-w-3xl py-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3 }}
+        >
+          <Link
+            to="/"
+            className="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Voltar
+          </Link>
+
+          {/* Large carousel */}
+          <VisualCarousel
+            images={article.galleryUrls!}
+            format={article.visualFormat || 'vertical'}
+            className="mt-4"
+          />
+
+          {/* Title */}
+          <h1 className="mt-6 font-display text-2xl font-bold leading-tight md:text-3xl lg:text-4xl">
+            {article.title}
+          </h1>
+
+          {/* Category + Date */}
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <Badge 
+              variant="secondary" 
+              className={cn("text-xs", getCategoryColor())}
+            >
+              {category?.icon && <category.icon className="mr-1 h-3 w-3" />}
+              {category?.name}
+            </Badge>
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Calendar className="h-3 w-3" />
+              {new Date(article.publishedAt).toLocaleDateString('pt-MZ', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+              })}
+            </span>
+          </div>
+
+          {/* Actions */}
+          <div className="mt-4 flex items-center gap-2">
+            <Button variant="default" size="sm" onClick={scrollToChat}>
+              <MessageCircle className="h-4 w-4 mr-1" />
+              Explorar esta notícia
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleLike}
+              className={cn(liked && "border-red-200 bg-red-50 hover:bg-red-100")}
+            >
+              <Heart className={cn("h-4 w-4 mr-1", liked && "fill-red-500 text-red-500")} />
+              {liked ? 'Amei' : 'Curtir'}
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleShare}>
+              <Share2 className="h-4 w-4 mr-1" />
+              Partilhar
+            </Button>
+          </div>
+
+          {/* Chat */}
+          <div className="mt-8">
+            <ArticleChat article={article} />
+          </div>
+        </motion.article>
+
+        {/* Floating button for mobile */}
+        <Button
+          className={cn(
+            "fixed bottom-20 right-4 z-40 gap-2 shadow-lg md:hidden transition-all duration-300",
+            showFloatingButton 
+              ? "translate-y-0 opacity-100" 
+              : "translate-y-20 opacity-0 pointer-events-none"
+          )}
+          onClick={scrollToChat}
+        >
+          <MessageCircle className="h-4 w-4" />
+          Explorar esta notícia
+        </Button>
+      </Layout>
+    );
+  }
+
+  // Regular article layout
   return (
     <Layout showSidebars={false}>
       <motion.article 
@@ -230,7 +323,7 @@ export default function ArticlePage() {
           </div>
         )}
 
-        {/* 4. Content - very legible */}
+        {/* 4. Content */}
         <div className="mt-8 space-y-4">
           {article.content.split('\n\n').map((paragraph, index) => (
             <p key={index} className="text-lg leading-relaxed text-foreground">
@@ -274,7 +367,7 @@ export default function ArticlePage() {
           </section>
         )}
 
-        {/* 7. Chat with article (at the end) */}
+        {/* 7. Chat with article */}
         <div className="mt-8">
           <ArticleChat article={article} />
         </div>

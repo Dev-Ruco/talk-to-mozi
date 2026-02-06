@@ -10,6 +10,7 @@ import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { cn } from '@/lib/utils';
 import { getValidImageUrl } from '@/lib/imageUtils';
 import { toast } from 'sonner';
+import { VisualCarousel } from './VisualCarousel';
 
 interface NewsCardProps {
   article: Article;
@@ -130,6 +131,8 @@ export function NewsCard({ article, variant = 'default' }: NewsCardProps) {
     );
   }
 
+  const isVisual = article.contentType === 'visual' && article.galleryUrls && article.galleryUrls.length > 0;
+
   // Default - Social media style card with large image
   return (
     <motion.article 
@@ -138,18 +141,27 @@ export function NewsCard({ article, variant = 'default' }: NewsCardProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      {/* Large Image - fully clickable */}
+      {/* Image or Carousel - fully clickable */}
       <Link to={`/artigo/${article.id}`} className="block">
-        <AspectRatio ratio={16 / 9}>
-          <img
-            src={getValidImageUrl(article.imageUrl)}
-            alt={article.title}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-            onError={(e) => {
-              e.currentTarget.src = '/placeholder.svg';
-            }}
-          />
-        </AspectRatio>
+        {isVisual ? (
+          <div onClick={(e) => e.preventDefault()}>
+            <VisualCarousel
+              images={article.galleryUrls!}
+              format={article.visualFormat || 'vertical'}
+            />
+          </div>
+        ) : (
+          <AspectRatio ratio={16 / 9}>
+            <img
+              src={getValidImageUrl(article.imageUrl)}
+              alt={article.title}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+              onError={(e) => {
+                e.currentTarget.src = '/placeholder.svg';
+              }}
+            />
+          </AspectRatio>
+        )}
       </Link>
       
       {/* Content */}
@@ -163,10 +175,12 @@ export function NewsCard({ article, variant = 'default' }: NewsCardProps) {
             {CategoryIcon && <CategoryIcon className="mr-1 h-3 w-3" />}
             {category?.name}
           </Badge>
-          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Clock className="h-3 w-3" />
-            {article.readingTime} min
-          </span>
+          {!isVisual && (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="h-3 w-3" />
+              {article.readingTime} min
+            </span>
+          )}
         </div>
         
         {/* Title */}
@@ -176,12 +190,14 @@ export function NewsCard({ article, variant = 'default' }: NewsCardProps) {
           </h3>
         </Link>
         
-        {/* Summary */}
-        <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
-          {article.summary}
-        </p>
+        {/* Summary - only for regular articles */}
+        {!isVisual && (
+          <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
+            {article.summary}
+          </p>
+        )}
         
-        {/* Actions - Simplified */}
+        {/* Actions */}
         <div className="mt-4 flex items-center justify-between">
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
             <Button
