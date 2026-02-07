@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, MessageCircle } from 'lucide-react';
+import { Send } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -161,9 +161,9 @@ export function HeroChat() {
           {isLoadingArticles ? (
             // Loading skeleton for carousel - 3 cards on desktop
             <div className="flex gap-4 overflow-hidden">
-              <Skeleton className="h-40 w-full shrink-0 rounded-xl md:w-1/2 lg:w-1/3" />
-              <Skeleton className="hidden h-40 w-1/2 shrink-0 rounded-xl md:block lg:w-1/3" />
-              <Skeleton className="hidden h-40 w-1/3 shrink-0 rounded-xl lg:block" />
+              <Skeleton className="aspect-[16/10] w-full shrink-0 rounded-xl md:w-1/2 lg:w-1/3" />
+              <Skeleton className="hidden aspect-[16/10] w-1/2 shrink-0 rounded-xl md:block lg:w-1/3" />
+              <Skeleton className="hidden aspect-[16/10] w-1/3 shrink-0 rounded-xl lg:block" />
             </div>
           ) : carouselItems.length > 0 ? (
             <Carousel 
@@ -180,33 +180,28 @@ export function HeroChat() {
                     {item.type === 'article' ? (
                       <motion.button
                         onClick={() => handleArticleChat(item.data.id)}
-                        className="group relative block h-40 w-full overflow-hidden rounded-xl text-left"
+                        className="group block w-full overflow-hidden rounded-xl border bg-card text-left"
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                       >
-                        <img
-                          src={getValidImageUrl(item.data.imageUrl)}
-                          alt={item.data.title}
-                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                          onError={(e) => {
-                            e.currentTarget.src = '/placeholder.svg';
-                          }}
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-                        <div className="absolute bottom-0 left-0 right-0 p-4">
-                          <h3 className="font-display text-base font-bold text-white leading-tight line-clamp-2 md:text-lg">
+                        <div className="overflow-hidden">
+                          <img
+                            src={getValidImageUrl(item.data.imageUrl)}
+                            alt={item.data.title}
+                            className="aspect-[16/10] w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            onError={(e) => {
+                              e.currentTarget.src = '/placeholder.svg';
+                            }}
+                          />
+                        </div>
+                        <div className="p-3">
+                          <h3 className="font-display text-sm font-semibold leading-tight line-clamp-2">
                             {item.data.title}
                           </h3>
-                          <div className="mt-2 flex items-center gap-2">
-                            <span className="flex items-center gap-1 text-xs text-white/90">
-                              <MessageCircle className="h-3 w-3" />
-                              Conversar
-                            </span>
-                          </div>
                         </div>
                       </motion.button>
                     ) : (
-                      <div className="h-40">
+                      <div className="overflow-hidden rounded-xl border bg-card">
                         <SponsoredCard ad={item.data} variant="carousel" />
                       </div>
                     )}

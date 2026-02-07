@@ -144,12 +144,10 @@ export function NewsCard({ article, variant = 'default' }: NewsCardProps) {
       {/* Image or Carousel - fully clickable */}
       <Link to={`/artigo/${article.id}`} className="block">
         {isVisual ? (
-          <div onClick={(e) => e.preventDefault()}>
-            <VisualCarousel
-              images={article.galleryUrls!}
-              format={article.visualFormat || 'vertical'}
-            />
-          </div>
+          <VisualCarousel
+            images={article.galleryUrls!}
+            format={article.visualFormat || 'vertical'}
+          />
         ) : (
           <AspectRatio ratio={16 / 9}>
             <img
