@@ -38,6 +38,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
+import { MediaUploadModal } from '../components/media/MediaUploadModal';
 
 export default function MediaPage() {
   const [search, setSearch] = useState('');
@@ -45,6 +46,7 @@ export default function MediaPage() {
   const [editMedia, setEditMedia] = useState<MediaItem | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [newTag, setNewTag] = useState('');
+  const [showUploadModal, setShowUploadModal] = useState(false);
 
   const debouncedSearch = useDebounce(search, 300);
   const { data: mediaItems = [], isLoading } = useMedia({ search: debouncedSearch });
@@ -139,23 +141,10 @@ export default function MediaPage() {
                 Arquivo fotográfico central do portal
               </p>
             </div>
-            <label>
-              <Button disabled={uploadMedia.isPending}>
-                {uploadMedia.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Upload className="mr-2 h-4 w-4" />
-                )}
-                Carregar Imagens
-              </Button>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={handleFileUpload}
-              />
-            </label>
+            <Button onClick={() => setShowUploadModal(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              Carregar Imagens
+            </Button>
           </div>
 
           {/* Search */}
@@ -423,6 +412,12 @@ export default function MediaPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Upload Modal */}
+        <MediaUploadModal
+          open={showUploadModal}
+          onClose={() => setShowUploadModal(false)}
+        />
       </div>
     </AdminLayout>
   );
