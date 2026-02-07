@@ -1,253 +1,191 @@
 
-# Notícias Visuais (Image-First) — Plano de Implementação
+# Redesign do Carrossel, Slideshow Visual e Galeria de Imagens
 
-## Visão Geral
+## 1. Carrossel de Destaques da Homepage
 
-Adicionar um novo tipo de conteúdo "Notícia Visual" ao B NEWS, baseado em carrosseis de imagens (ate 6), com dois formatos (vertical imersivo e horizontal classico). O artigo completo existe apenas como base de conhecimento para o chat.
+### Problema Actual
+O carrossel (em `HeroChat.tsx`, linhas 169-226) usa overlays escuros (`bg-gradient-to-t from-black/80`) com titulo e texto sobrepostos na imagem. Altura fixa de apenas `h-40`. Inclui texto "Conversar" dentro da imagem.
 
----
+### Alteracoes
 
-## Fase 1: Base de Dados
+**Ficheiro: `src/components/news/HeroChat.tsx`**
 
-### Migracaco SQL
+Redesenhar o bloco do carrossel (linhas 178-213) para separar imagem e titulo:
 
-Adicionar 3 novos campos a tabela `articles`:
+- Remover o gradiente overlay (`bg-gradient-to-t from-black/80 via-black/40 to-transparent`)
+- Remover o titulo e o bloco "Conversar" de dentro da imagem
+- Aumentar a altura da imagem de `h-40` para `aspect-[16/10]` (mais alto que 16:9)
+- Colocar o titulo FORA da imagem, abaixo, com padding `p-3`
+- Card inteiro clicavel (ja esta com `motion.button`)
+- Aplicar `rounded-xl` na imagem e no card
+- Titulo com `font-display text-sm font-semibold line-clamp-2 leading-tight`
 
-| Campo | Tipo | Default | Descricao |
-|-------|------|---------|-----------|
-| `content_type` | `text` | `'article'` | `'article'` ou `'visual'` |
-| `visual_format` | `text` | `null` | `'vertical'` ou `'horizontal'` |
-| `gallery_urls` | `text[]` | `null` | Array de URLs de imagens (ate 6) |
-
-```sql
-ALTER TABLE public.articles
-  ADD COLUMN content_type text NOT NULL DEFAULT 'article',
-  ADD COLUMN visual_format text,
-  ADD COLUMN gallery_urls text[];
-```
-
----
-
-## Fase 2: Tipos TypeScript
-
-### 2.1 `src/types/news.ts`
-
-Adicionar campos ao tipo `Article`:
-
-```typescript
-export interface Article {
-  // ... campos existentes ...
-  contentType: 'article' | 'visual';
-  visualFormat?: 'vertical' | 'horizontal';
-  galleryUrls?: string[];
-}
-```
-
-### 2.2 `src/admin/types/admin.ts`
-
-Adicionar campos ao tipo `Article` do admin:
-
-```typescript
-export interface Article {
-  // ... campos existentes ...
-  content_type: 'article' | 'visual';
-  visual_format: 'vertical' | 'horizontal' | null;
-  gallery_urls: string[] | null;
-}
-```
-
-### 2.3 `src/hooks/usePublishedArticles.ts`
-
-Actualizar `adaptArticle` para mapear os novos campos:
-
-```typescript
-export function adaptArticle(dbArticle: PublishedArticle): Article {
-  return {
-    // ... existentes ...
-    contentType: (dbArticle as any).content_type || 'article',
-    visualFormat: (dbArticle as any).visual_format || undefined,
-    galleryUrls: (dbArticle as any).gallery_urls || [],
-  };
-}
-```
-
----
-
-## Fase 3: Componentes Frontend (Publico)
-
-### 3.1 Novo componente: `src/components/news/VisualCarousel.tsx`
-
-Componente de carousel com dois modos:
-
-**Vertical Imersivo (aspect ratio 4:5):**
-- Imagem central em destaque (grande)
-- Imagens laterais parcialmente visiveis e reduzidas
-- Ao deslizar, a proxima imagem cresce para o centro
-- Usa `embla-carousel-react` (ja instalado)
-
-**Horizontal Classico (aspect ratio 16:9):**
-- Carousel standard com dots indicadores
-- Navegacao por swipe/setas
-
-```typescript
-interface VisualCarouselProps {
-  images: string[];
-  format: 'vertical' | 'horizontal';
-  className?: string;
-}
-```
-
-### 3.2 Modificar `src/components/news/NewsCard.tsx`
-
-Adicionar logica condicional para `article.contentType === 'visual'`:
-
+Nova estrutura do card:
 ```text
-SE contentType === 'visual':
-  +----------------------------------+
-  | [ CAROUSEL DE IMAGENS ]           |
-  |                                    |
-  | Categoria                          |
-  | Titulo da noticia                  |
-  |                                    |
-  | [ Explorar a noticia ]     [share] |
-  +----------------------------------+
-
-  - NAO mostrar summary/lead
-  - Substituir imagem unica pelo VisualCarousel
-  - Manter botao "Explorar a noticia" e share
-
-SE contentType === 'article':
-  - Comportamento actual (sem alteracoes)
++----------------------------------+
+| [IMAGEM - 100% limpa, sem texto] |
+| [aspect-ratio 16/10, object-fit  |
+|  cover, sem gradientes]          |
++----------------------------------+
+| Titulo da noticia (fora da       |
+| imagem, 2 linhas max)            |
++----------------------------------+
 ```
 
-### 3.3 Modificar `src/pages/ArticlePage.tsx`
-
-Para noticias visuais, o layout muda:
-
-```text
-SE contentType === 'visual':
-  1. Voltar
-  2. VisualCarousel (grande, imersivo)
-  3. Titulo
-  4. Categoria + Data
-  5. Botao flutuante mobile: "Explorar esta noticia"
-  6. ArticleChat (com perguntas sugeridas)
-
-  NAO mostrar:
-  - Summary/lead
-  - Conteudo textual
-  - Quick Facts (ficam para o chat responder)
-  - Reading time (nao relevante)
-
-SE contentType === 'article':
-  - Layout actual (sem alteracoes)
-```
+Para o card de anuncio patrocinado, aplicar a mesma altura e estrutura.
 
 ---
 
-## Fase 4: Dashboard / CRM (Admin)
+## 2. Slideshow de Fotografias (VisualCarousel) dentro dos Cards
 
-### 4.1 Botao "Criar como Noticia Visual" no Pipeline
+### Problema Actual
+O `VisualCarousel.tsx` no formato vertical usa `aspect-[4/5]` que e muito alto e quebra a grelha. As setas e dots ficam fora do card. As dimensoes variam entre formato vertical e horizontal.
 
-Modificar `src/admin/components/pipeline/PipelineCard.tsx`:
-- Adicionar opcao no dropdown menu dos artigos Pendentes:
-  - "Converter em Noticia Visual" (icone Camera/Image)
-  - Navega para `/admin/article/{id}?visual=true`
+### Alteracoes
 
-### 4.2 Novo componente: `src/admin/components/editor/VisualEditor.tsx`
+**Ficheiro: `src/components/news/VisualCarousel.tsx`**
 
-Ecra dedicado para editar Noticias Visuais:
+- Ambos os formatos (vertical e horizontal) devem usar `aspect-video` (16:9) como dimensao fixa do painel, IGUAL ao `AspectRatio` do `NewsCard` normal
+- As imagens devem usar `object-cover` para preencher o painel sem alterar as dimensoes do card
+- Setas de navegacao e dots DENTRO do painel (posicao absoluta), sem alterar a altura
+- Remover a variacao de tamanho no formato vertical (o efeito de "imagem central grande, laterais pequenas" era bonito mas quebra a consistencia com os cards normais)
+- Manter `rounded-xl` e `overflow-hidden` para conter tudo dentro do painel
+
+O formato vertical vs horizontal passa a ser apenas uma diferenca de **como o carousel se comporta** (transicao/efeito), nao de dimensoes:
+- Vertical: transicao tipo fade/slide suave, sem efeito de escala
+- Horizontal: carousel classico standard
+
+**Ficheiro: `src/components/news/NewsCard.tsx`**
+
+- Remover o `onClick={(e) => e.preventDefault()}` no wrapper do VisualCarousel (linha 147) -- o carousel deve ser clicavel como link para o artigo
+- Garantir que o VisualCarousel fica dentro do mesmo `AspectRatio ratio={16/9}` usado para artigos normais
+
+---
+
+## 3. Galeria de Imagens (Admin) -- Upload em Lote com Metadados
+
+### Problema Actual
+O botao "Carregar Imagens" (linhas 142-158 de `MediaPage.tsx`) usa um `<label>` com `<input type="file">` escondido que faz upload directo sem modal, sem previews, sem campos de titulo/legenda. Funciona, mas nao tem a UX pretendida.
+
+### Alteracoes
+
+**Novo ficheiro: `src/admin/components/media/MediaUploadModal.tsx`**
+
+Criar modal completo de upload em lote:
 
 ```text
 +--------------------------------------------------+
-| EDITOR VISUAL                                      |
+| CARREGAR IMAGENS                           [X]    |
+|--------------------------------------------------|
 |                                                    |
-| Tipo: [Vertical Imersivo] [Horizontal Classico]   |
+| +----------------------------------------------+ |
+| |  Arraste imagens aqui ou clique para          | |
+| |  seleccionar ficheiros                        | |
+| |  JPG, PNG, WebP ate 10MB (max 5 ficheiros)   | |
+| +----------------------------------------------+ |
 |                                                    |
-| +--------+ +--------+ +--------+                  |
-| |  Img 1 | |  Img 2 | |  Img 3 |                  |
-| |  [x]   | |  [x]   | |  [x]   |  + Adicionar    |
-| +--------+ +--------+ +--------+                  |
+| [x] Aplicar mesmo titulo/legenda a todas          |
 |                                                    |
-| Preview do Carousel em tempo real                  |
+| Titulo para todas: [___________________]          |
+| Legenda para todas: [___________________]         |
 |                                                    |
-| Titulo: [____________________________]             |
-| Categoria: [dropdown]                              |
+| -- OU por imagem: --                              |
 |                                                    |
-| [Guardar Rascunho]  [Publicar]                     |
+| +--------+  Titulo: [___________]                 |
+| |  thumb |  Legenda: [___________]     [Remover]  |
+| +--------+  Tags: [chip1] [chip2] [+]             |
+|                                                    |
+| +--------+  Titulo: [___________]                 |
+| |  thumb |  Legenda: [___________]     [Remover]  |
+| +--------+  Tags: [chip1] [+]                     |
+|                                                    |
+|                     [Cancelar]  [Carregar (2)]    |
 +--------------------------------------------------+
 ```
 
 Funcionalidades:
-- Upload multiplo (drag and drop) via `MediaPicker` existente
-- Reordenar imagens (drag)
-- Remover imagens individuais
-- Preview do carousel no formato seleccionado
-- Maximo 6 imagens
-- Campo titulo e selector de categoria
+- Zona drag and drop + botao de seleccao
+- Maximo 5 ficheiros por lote
+- Apenas imagens (jpg/png/webp), max 10MB por ficheiro, com validacao e mensagens
+- Preview thumbnail de cada imagem antes do upload
+- Campos por imagem: Titulo (obrigatorio), Legenda (opcional), Tags (chips)
+- Toggle "Aplicar a todas": quando activo, mostra campos globais e oculta individuais
+- Botao "Remover" por imagem para tirar da fila
+- Progresso de upload por imagem (barra ou spinner)
+- Se uma imagem falhar, mostrar erro nessa imagem com botao "Tentar novamente"
+- Apos sucesso: fechar modal, recarregar grelha, toast "Imagens carregadas com sucesso"
 
-### 4.3 Modificar `src/admin/components/editor/ArticleEditor.tsx`
+**Ficheiro: `src/admin/pages/MediaPage.tsx`**
 
-Adicionar toggle entre editor normal e editor visual:
-- Se `content_type === 'visual'`, mostrar `VisualEditor` em vez do `ContentPanel`
-- Se `content_type === 'article'`, manter layout actual
+- Substituir o `<label><input type="file">` por um `<Button>` que abre o `MediaUploadModal`
+- Adicionar estado `showUploadModal` e renderizar o modal
+- Manter toda a logica existente de visualizacao, edicao e eliminacao
 
-### 4.4 Modificar `src/admin/components/editor/PublishPanel.tsx`
+**Ficheiro: `src/admin/hooks/useMedia.ts`**
 
-Adicionar selector de tipo de conteudo:
+- O hook `useUploadMedia` ja suporta `title`, `description` e `tags` como parametros -- nao precisa de alteracoes no hook
+- Apenas o modal novo vai chamar `uploadMedia.mutateAsync({ file, title, description, tags })` com os campos preenchidos
 
-```text
-Tipo de Conteudo:
-  [Artigo Normal]  [Noticia Visual]
+---
+
+## Resumo de Ficheiros
+
+| Ficheiro | Accao |
+|----------|-------|
+| `src/components/news/HeroChat.tsx` | Redesenhar carrossel: imagem limpa + titulo fora |
+| `src/components/news/VisualCarousel.tsx` | Padronizar dimensoes para aspect-video, setas/dots dentro do painel |
+| `src/components/news/NewsCard.tsx` | Ajustar wrapper do VisualCarousel |
+| `src/admin/components/media/MediaUploadModal.tsx` | **Novo** - Modal de upload em lote com metadados |
+| `src/admin/pages/MediaPage.tsx` | Usar o novo modal em vez do input file directo |
+
+---
+
+## Secacao Tecnica
+
+### HeroChat.tsx - Estrutura do card redesenhado
+```tsx
+<motion.button
+  onClick={() => handleArticleChat(item.data.id)}
+  className="group block w-full overflow-hidden rounded-xl border bg-card text-left"
+  whileHover={{ scale: 1.02 }}
+  whileTap={{ scale: 0.98 }}
+>
+  {/* Imagem limpa - sem overlay */}
+  <div className="overflow-hidden">
+    <img
+      src={getValidImageUrl(item.data.imageUrl)}
+      alt={item.data.title}
+      className="aspect-[16/10] w-full object-cover transition-transform duration-300 group-hover:scale-105"
+      onError={(e) => { e.currentTarget.src = '/placeholder.svg'; }}
+    />
+  </div>
+  {/* Titulo fora da imagem */}
+  <div className="p-3">
+    <h3 className="font-display text-sm font-semibold leading-tight line-clamp-2">
+      {item.data.title}
+    </h3>
+  </div>
+</motion.button>
 ```
 
-Quando muda para "Noticia Visual":
-- Oculta campos de lead, conteudo textual, quick facts
-- Mostra upload de galeria
+### VisualCarousel.tsx - Padronizacao
+- Remover o efeito de escala/opacidade no formato vertical
+- Usar `aspect-video` em ambos os formatos
+- Posicionar setas e dots com `absolute` dentro do container `overflow-hidden`
+- Manter dots abaixo da imagem mas dentro do card
 
-### 4.5 Modificar `src/admin/pages/ArticleEditorPage.tsx`
-
-Actualizar `handleSave` para incluir os novos campos na gravacao:
-- `content_type`
-- `visual_format`
-- `gallery_urls`
-
----
-
-## Fase 5: Integracao com IA
-
-Sem alteracoes necessarias. O artigo reformulado continua a existir na base de dados com `content` preenchido. O chat (`ArticleChat`) ja utiliza o conteudo do artigo para responder, independentemente do `content_type`.
-
----
-
-## Ficheiros a Criar
-
-| Ficheiro | Descricao |
-|----------|-----------|
-| `src/components/news/VisualCarousel.tsx` | Carousel com modos vertical/horizontal |
-| `src/admin/components/editor/VisualEditor.tsx` | Editor de galeria para noticias visuais |
-
-## Ficheiros a Modificar
-
-| Ficheiro | Alteracao |
-|----------|-----------|
-| **SQL Migration** | Adicionar `content_type`, `visual_format`, `gallery_urls` |
-| `src/types/news.ts` | Novos campos no tipo `Article` |
-| `src/admin/types/admin.ts` | Novos campos no tipo `Article` admin |
-| `src/hooks/usePublishedArticles.ts` | Mapear novos campos em `adaptArticle` |
-| `src/components/news/NewsCard.tsx` | Renderizar carousel para tipo visual |
-| `src/pages/ArticlePage.tsx` | Layout diferente para noticias visuais |
-| `src/admin/components/editor/ArticleEditor.tsx` | Toggle entre editor normal e visual |
-| `src/admin/components/editor/PublishPanel.tsx` | Selector de tipo de conteudo |
-| `src/admin/pages/ArticleEditorPage.tsx` | Gravar novos campos |
-| `src/admin/components/pipeline/PipelineCard.tsx` | Opcao "Converter em Noticia Visual" |
-
----
-
-## Notas Tecnicas
-
-- O `embla-carousel-react` e `embla-carousel-autoplay` ja estao instalados como dependencias
-- O bucket `article-images` do Storage ja existe para armazenar as imagens da galeria
-- O `MediaPicker` existente sera reutilizado para seleccionar/carregar imagens
-- As RLS policies existentes na tabela `articles` aplicam-se automaticamente aos novos campos
-- O Supabase Realtime ja esta configurado para a tabela `articles`
+### MediaUploadModal.tsx - Estado interno
+```tsx
+interface UploadItem {
+  file: File;
+  preview: string;         // URL.createObjectURL
+  title: string;
+  caption: string;
+  tags: string[];
+  status: 'pending' | 'uploading' | 'success' | 'error';
+  error?: string;
+}
+```
+- Usa o hook `useUploadMedia` existente para cada ficheiro
+- Validacao: tipo MIME (image/jpeg, image/png, image/webp), tamanho <= 10MB, max 5 ficheiros
+- Cleanup de `URL.createObjectURL` no unmount
