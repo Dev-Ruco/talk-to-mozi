@@ -58,6 +58,10 @@ export function PublishPanel({
   // Check if image is valid (not a blob: URL)
   const hasValidImage = isValidImageUrl(article.image_url);
   const hasBlobImage = article.image_url?.startsWith('blob:');
+  const isVisual = article.content_type === 'visual';
+  const canPublish = isVisual
+    ? !!article.title && (article.gallery_urls?.length ?? 0) > 0
+    : !!article.title && !!article.content && hasValidImage;
 
   const { uploadImage, isUploading, progress } = useImageUpload({
     onSuccess: (url) => {
@@ -118,109 +122,113 @@ export function PublishPanel({
             </Select>
           </div>
 
-          {/* Image */}
-          <div className="space-y-2">
-            <Label>Imagem de Capa</Label>
-            {article.image_url ? (
-              <div className="relative">
-                <img 
-                  src={article.image_url} 
-                  alt="Capa" 
-                  className="w-full aspect-video rounded-lg object-cover"
-                />
-                {hasBlobImage && (
-                  <div className="absolute inset-0 bg-destructive/20 rounded-lg flex items-center justify-center">
-                    <div className="bg-background/90 rounded-md p-2 text-center">
-                      <AlertCircle className="h-5 w-5 text-destructive mx-auto mb-1" />
-                      <p className="text-xs text-destructive font-medium">
-                        Imagem temporária
-                      </p>
+          {/* Image - hidden for visual content type */}
+          {!isVisual && (
+            <>
+              <div className="space-y-2">
+                <Label>Imagem de Capa</Label>
+                {article.image_url ? (
+                  <div className="relative">
+                    <img 
+                      src={article.image_url} 
+                      alt="Capa" 
+                      className="w-full aspect-video rounded-lg object-cover"
+                    />
+                    {hasBlobImage && (
+                      <div className="absolute inset-0 bg-destructive/20 rounded-lg flex items-center justify-center">
+                        <div className="bg-background/90 rounded-md p-2 text-center">
+                          <AlertCircle className="h-5 w-5 text-destructive mx-auto mb-1" />
+                          <p className="text-xs text-destructive font-medium">
+                            Imagem temporária
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    <div className="absolute bottom-2 right-2 flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setShowMediaPicker(true)}
+                        disabled={isUploading}
+                      >
+                        <FolderOpen className="mr-1 h-3 w-3" />
+                        Galeria
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={handleImageUpload}
+                        disabled={isUploading}
+                      >
+                        {isUploading ? (
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        ) : (
+                          <Upload className="mr-1 h-3 w-3" />
+                        )}
+                        Carregar
+                      </Button>
                     </div>
                   </div>
-                )}
-                <div className="absolute bottom-2 right-2 flex gap-1">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => setShowMediaPicker(true)}
-                    disabled={isUploading}
-                  >
-                    <FolderOpen className="mr-1 h-3 w-3" />
-                    Galeria
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={handleImageUpload}
-                    disabled={isUploading}
-                  >
-                    {isUploading ? (
-                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                    ) : (
-                      <Upload className="mr-1 h-3 w-3" />
-                    )}
-                    Carregar
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Button
-                  variant="outline"
-                  className="w-full h-32 border-dashed"
-                  onClick={() => setShowMediaPicker(true)}
-                >
-                  <div className="flex flex-col items-center gap-2">
-                    <FolderOpen className="h-8 w-8 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">
-                      Seleccionar da Galeria
-                    </span>
+                ) : (
+                  <div className="space-y-2">
+                    <Button
+                      variant="outline"
+                      className="w-full h-32 border-dashed"
+                      onClick={() => setShowMediaPicker(true)}
+                    >
+                      <div className="flex flex-col items-center gap-2">
+                        <FolderOpen className="h-8 w-8 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">
+                          Seleccionar da Galeria
+                        </span>
+                      </div>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={handleImageUpload}
+                      disabled={isUploading}
+                    >
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          A carregar... {progress}%
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="mr-2 h-4 w-4" />
+                          Ou carregar do computador
+                        </>
+                      )}
+                    </Button>
                   </div>
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleImageUpload}
-                  disabled={isUploading}
-                >
-                  {isUploading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      A carregar... {progress}%
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="mr-2 h-4 w-4" />
-                      Ou carregar do computador
-                    </>
-                  )}
-                </Button>
+                )}
+                {isUploading && (
+                  <Progress value={progress} className="h-1" />
+                )}
+                {hasBlobImage && (
+                  <p className="text-xs text-destructive flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    Clique "Carregar" ou seleccione da Galeria para guardar permanentemente
+                  </p>
+                )}
+                <Input
+                  placeholder="Legenda da imagem..."
+                  value={article.image_caption || ''}
+                  onChange={(e) => onUpdate({ image_caption: e.target.value })}
+                />
               </div>
-            )}
-            {isUploading && (
-              <Progress value={progress} className="h-1" />
-            )}
-            {hasBlobImage && (
-              <p className="text-xs text-destructive flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" />
-                Clique "Carregar" ou seleccione da Galeria para guardar permanentemente
-              </p>
-            )}
-            <Input
-              placeholder="Legenda da imagem..."
-              value={article.image_caption || ''}
-              onChange={(e) => onUpdate({ image_caption: e.target.value })}
-            />
-          </div>
 
-          {/* Media Picker Dialog */}
-          <MediaPicker
-            open={showMediaPicker}
-            onClose={() => setShowMediaPicker(false)}
-            onSelect={(url) => {
-              onUpdate({ image_url: url });
-            }}
-          />
+              {/* Media Picker Dialog */}
+              <MediaPicker
+                open={showMediaPicker}
+                onClose={() => setShowMediaPicker(false)}
+                onSelect={(url) => {
+                  onUpdate({ image_url: url });
+                }}
+              />
+            </>
+          )}
 
           {/* Category */}
           <div className="space-y-2">
@@ -353,7 +361,7 @@ export function PublishPanel({
         >
           {isSaving ? 'A guardar...' : 'Guardar rascunho'}
         </Button>
-        {hasBlobImage && (
+        {!isVisual && hasBlobImage && (
           <p className="text-xs text-center text-amber-600">
             ⚠️ A imagem precisa ser guardada antes de publicar
           </p>
@@ -361,7 +369,7 @@ export function PublishPanel({
         <Button 
           className="w-full" 
           onClick={onPublish}
-          disabled={isSaving || !article.title || !article.content || !hasValidImage}
+          disabled={isSaving || !canPublish}
         >
           <Check className="mr-2 h-4 w-4" />
           Publicar agora

@@ -9,7 +9,7 @@ import { VisualCarousel } from '@/components/news/VisualCarousel';
 import { MediaPicker } from '@/admin/components/media/MediaPicker';
 import { useImageUpload } from '@/admin/hooks/useImageUpload';
 import { Article } from '../../types/admin';
-import { cn } from '@/lib/utils';
+// cn no longer needed for thumbnail aspect ratio
 
 interface VisualEditorProps {
   article: Article;
@@ -136,10 +136,7 @@ export function VisualEditor({ article, onUpdate }: VisualEditorProps) {
                     <img
                       src={url}
                       alt={`Imagem ${index + 1}`}
-                      className={cn(
-                        'w-full rounded-lg object-cover border',
-                        format === 'vertical' ? 'aspect-[4/5]' : 'aspect-video'
-                      )}
+                      className="w-full rounded-lg object-cover border aspect-video"
                     />
                     <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button

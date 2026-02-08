@@ -104,6 +104,11 @@ export default function ArticleEditorPage() {
     if (!article) return;
     
     setIsSaving(true);
+    // For visual news, auto-fill image_url from first gallery image
+    const imageUrl = article.content_type === 'visual' && article.gallery_urls?.length
+      ? article.gallery_urls[0]
+      : article.image_url;
+
     const { error } = await supabase
       .from('articles')
       .update({
@@ -114,7 +119,7 @@ export default function ArticleEditorPage() {
         tags: article.tags,
         category: article.category,
         location: article.location,
-        image_url: article.image_url,
+        image_url: imageUrl,
         image_caption: article.image_caption,
         highlight_type: article.highlight_type,
         seo_title: article.seo_title,
