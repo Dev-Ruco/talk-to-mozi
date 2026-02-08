@@ -147,6 +147,7 @@ export function NewsCard({ article, variant = 'default' }: NewsCardProps) {
           <VisualCarousel
             images={article.galleryUrls!}
             format={article.visualFormat || 'vertical'}
+            autoplay
           />
         ) : (
           <AspectRatio ratio={16 / 9}>

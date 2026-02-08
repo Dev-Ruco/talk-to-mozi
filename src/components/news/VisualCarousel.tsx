@@ -1,5 +1,6 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
+import Autoplay from 'embla-carousel-autoplay';
 import { cn } from '@/lib/utils';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -7,15 +8,21 @@ interface VisualCarouselProps {
   images: string[];
   format: 'vertical' | 'horizontal';
   className?: string;
+  autoplay?: boolean;
 }
 
-export function VisualCarousel({ images, format, className }: VisualCarouselProps) {
+export function VisualCarousel({ images, format, className, autoplay = false }: VisualCarouselProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
+
+  const plugins = autoplay
+    ? [Autoplay({ delay: 4000, stopOnInteraction: true, stopOnMouseEnter: true })]
+    : [];
+
   const [emblaRef, emblaApi] = useEmblaCarousel({
     loop: true,
     align: 'start',
     containScroll: 'trimSnaps',
-  });
+  }, plugins);
 
   const onSelect = useCallback(() => {
     if (!emblaApi) return;
