@@ -1,191 +1,141 @@
 
-# Redesign do Carrossel, Slideshow Visual e Galeria de Imagens
+# Correcao do Visual Editor e Fluxo de Publicacao de Noticias Visuais
 
-## 1. Carrossel de Destaques da Homepage
+## Problemas Identificados
 
-### Problema Actual
-O carrossel (em `HeroChat.tsx`, linhas 169-226) usa overlays escuros (`bg-gradient-to-t from-black/80`) com titulo e texto sobrepostos na imagem. Altura fixa de apenas `h-40`. Inclui texto "Conversar" dentro da imagem.
+### 1. Publicacao duplicada
+O PublishPanel (painel direito) exige imagem de capa + conteudo textual para publicar (`disabled={!article.title || !article.content || !hasValidImage}`), e mostra campos de "Imagem de Capa" separados da galeria do VisualEditor. Isto forca o utilizador a carregar uma foto extra e cria publicacao duplicada (uma como artigo, outra como visual).
 
-### Alteracoes
+### 2. Preview do carousel nao funciona correctamente
+O VisualEditor na linha 141 ainda usa `aspect-[4/5]` para formato vertical nos thumbnails do editor. O preview do carousel funciona, mas as imagens do editor mostram aspect ratios diferentes conforme o formato.
 
-**Ficheiro: `src/components/news/HeroChat.tsx`**
+### 3. MediaPicker oculta o botao de seleccionar
+O MediaPicker (`MediaPicker.tsx`) usa `ScrollArea` para a grelha de imagens mas o botao "Inserir Imagem" (linhas 146-157) fica fora do scroll. Quando ha muitas imagens, a grelha empurra o conteudo e o botao pode ficar oculto ou inacessivel.
 
-Redesenhar o bloco do carrossel (linhas 178-213) para separar imagem e titulo:
-
-- Remover o gradiente overlay (`bg-gradient-to-t from-black/80 via-black/40 to-transparent`)
-- Remover o titulo e o bloco "Conversar" de dentro da imagem
-- Aumentar a altura da imagem de `h-40` para `aspect-[16/10]` (mais alto que 16:9)
-- Colocar o titulo FORA da imagem, abaixo, com padding `p-3`
-- Card inteiro clicavel (ja esta com `motion.button`)
-- Aplicar `rounded-xl` na imagem e no card
-- Titulo com `font-display text-sm font-semibold line-clamp-2 leading-tight`
-
-Nova estrutura do card:
-```text
-+----------------------------------+
-| [IMAGEM - 100% limpa, sem texto] |
-| [aspect-ratio 16/10, object-fit  |
-|  cover, sem gradientes]          |
-+----------------------------------+
-| Titulo da noticia (fora da       |
-| imagem, 2 linhas max)            |
-+----------------------------------+
-```
-
-Para o card de anuncio patrocinado, aplicar a mesma altura e estrutura.
+### 4. Feed: carousel sem autoplay
+O VisualCarousel no feed usa navegacao manual (setas/dots) mas nao tem autoplay com possibilidade de pausar.
 
 ---
 
-## 2. Slideshow de Fotografias (VisualCarousel) dentro dos Cards
+## Solucao
 
-### Problema Actual
-O `VisualCarousel.tsx` no formato vertical usa `aspect-[4/5]` que e muito alto e quebra a grelha. As setas e dots ficam fora do card. As dimensoes variam entre formato vertical e horizontal.
+### Parte 1: Simplificar PublishPanel para Noticias Visuais
 
-### Alteracoes
+**Ficheiro: `src/admin/components/editor/PublishPanel.tsx`**
+
+Quando `content_type === 'visual'`:
+- Esconder completamente a seccao "Imagem de Capa" (linhas 121-214) -- a galeria no VisualEditor e suficiente
+- Esconder campos de legenda da imagem
+- Alterar a condicao do botao "Publicar" de `!article.content || !hasValidImage` para `!article.gallery_urls || article.gallery_urls.length === 0` -- exigir apenas titulo + pelo menos 1 imagem na galeria
+- Usar a primeira imagem da galeria como `image_url` automaticamente ao publicar
+
+### Parte 2: Corrigir ArticleEditorPage - Publicacao unica
+
+**Ficheiro: `src/admin/pages/ArticleEditorPage.tsx`**
+
+Na funcao `handlePublish`:
+- Se `content_type === 'visual'`, definir automaticamente `image_url` como a primeira imagem de `gallery_urls` (para o card no feed)
+- Nao exigir `content` para publicar noticias visuais (o conteudo textual existe da reformulacao IA mas nao e obrigatorio editar)
+
+### Parte 3: Carousel com autoplay no Feed
 
 **Ficheiro: `src/components/news/VisualCarousel.tsx`**
 
-- Ambos os formatos (vertical e horizontal) devem usar `aspect-video` (16:9) como dimensao fixa do painel, IGUAL ao `AspectRatio` do `NewsCard` normal
-- As imagens devem usar `object-cover` para preencher o painel sem alterar as dimensoes do card
-- Setas de navegacao e dots DENTRO do painel (posicao absoluta), sem alterar a altura
-- Remover a variacao de tamanho no formato vertical (o efeito de "imagem central grande, laterais pequenas" era bonito mas quebra a consistencia com os cards normais)
-- Manter `rounded-xl` e `overflow-hidden` para conter tudo dentro do painel
-
-O formato vertical vs horizontal passa a ser apenas uma diferenca de **como o carousel se comporta** (transicao/efeito), nao de dimensoes:
-- Vertical: transicao tipo fade/slide suave, sem efeito de escala
-- Horizontal: carousel classico standard
+- Adicionar prop `autoplay?: boolean` (default `false`)
+- Quando `autoplay=true`, usar `embla-carousel-autoplay` (ja instalado) com intervalo de 4 segundos
+- Pausar autoplay ao hover ou ao tocar (mobile)
+- O autoplay so activa no feed (NewsCard), nao no editor ou pagina do artigo
 
 **Ficheiro: `src/components/news/NewsCard.tsx`**
 
-- Remover o `onClick={(e) => e.preventDefault()}` no wrapper do VisualCarousel (linha 147) -- o carousel deve ser clicavel como link para o artigo
-- Garantir que o VisualCarousel fica dentro do mesmo `AspectRatio ratio={16/9}` usado para artigos normais
+- Passar `autoplay={true}` ao VisualCarousel no card do feed
+
+### Parte 4: Corrigir MediaPicker - Scroll e botao visivel
+
+**Ficheiro: `src/admin/components/media/MediaPicker.tsx`**
+
+- Reestruturar o layout da tab "library" para que o botao "Inserir Imagem" fique sempre fixo no fundo do dialog, visivel independentemente do scroll
+- Dar altura fixa ao ScrollArea da grelha de imagens (ex: `max-h-[50vh]`) para nao empurrar o botao
+- Manter o mesmo fix na tab "upload"
+
+### Parte 5: Corrigir thumbnails do VisualEditor
+
+**Ficheiro: `src/admin/components/editor/VisualEditor.tsx`**
+
+- Linha 141: remover a condicao `format === 'vertical' ? 'aspect-[4/5]' : 'aspect-video'` e usar sempre `aspect-video` para os thumbnails, consistente com o que aparece no feed
+- Garantir que o formato "horizontal" funciona correctamente no preview (ja funciona, o carousel usa `aspect-video`)
 
 ---
 
-## 3. Galeria de Imagens (Admin) -- Upload em Lote com Metadados
+## Detalhes Tecnicos
 
-### Problema Actual
-O botao "Carregar Imagens" (linhas 142-158 de `MediaPage.tsx`) usa um `<label>` com `<input type="file">` escondido que faz upload directo sem modal, sem previews, sem campos de titulo/legenda. Funciona, mas nao tem a UX pretendida.
+### PublishPanel - Condicao de publicacao para visual
+```typescript
+// Antes (exige content + imagem de capa separada):
+disabled={isSaving || !article.title || !article.content || !hasValidImage}
 
-### Alteracoes
+// Depois (para visual, exige apenas titulo + galeria):
+const isVisual = article.content_type === 'visual';
+const canPublish = isVisual
+  ? !!article.title && (article.gallery_urls?.length ?? 0) > 0
+  : !!article.title && !!article.content && hasValidImage;
 
-**Novo ficheiro: `src/admin/components/media/MediaUploadModal.tsx`**
-
-Criar modal completo de upload em lote:
-
-```text
-+--------------------------------------------------+
-| CARREGAR IMAGENS                           [X]    |
-|--------------------------------------------------|
-|                                                    |
-| +----------------------------------------------+ |
-| |  Arraste imagens aqui ou clique para          | |
-| |  seleccionar ficheiros                        | |
-| |  JPG, PNG, WebP ate 10MB (max 5 ficheiros)   | |
-| +----------------------------------------------+ |
-|                                                    |
-| [x] Aplicar mesmo titulo/legenda a todas          |
-|                                                    |
-| Titulo para todas: [___________________]          |
-| Legenda para todas: [___________________]         |
-|                                                    |
-| -- OU por imagem: --                              |
-|                                                    |
-| +--------+  Titulo: [___________]                 |
-| |  thumb |  Legenda: [___________]     [Remover]  |
-| +--------+  Tags: [chip1] [chip2] [+]             |
-|                                                    |
-| +--------+  Titulo: [___________]                 |
-| |  thumb |  Legenda: [___________]     [Remover]  |
-| +--------+  Tags: [chip1] [+]                     |
-|                                                    |
-|                     [Cancelar]  [Carregar (2)]    |
-+--------------------------------------------------+
+disabled={isSaving || !canPublish}
 ```
 
-Funcionalidades:
-- Zona drag and drop + botao de seleccao
-- Maximo 5 ficheiros por lote
-- Apenas imagens (jpg/png/webp), max 10MB por ficheiro, com validacao e mensagens
-- Preview thumbnail de cada imagem antes do upload
-- Campos por imagem: Titulo (obrigatorio), Legenda (opcional), Tags (chips)
-- Toggle "Aplicar a todas": quando activo, mostra campos globais e oculta individuais
-- Botao "Remover" por imagem para tirar da fila
-- Progresso de upload por imagem (barra ou spinner)
-- Se uma imagem falhar, mostrar erro nessa imagem com botao "Tentar novamente"
-- Apos sucesso: fechar modal, recarregar grelha, toast "Imagens carregadas com sucesso"
+### ArticleEditorPage - Auto-preencher image_url
+```typescript
+// No handlePublish, antes do update:
+const imageUrl = article.content_type === 'visual' && article.gallery_urls?.length
+  ? article.gallery_urls[0]  // Primeira imagem da galeria como capa
+  : article.image_url;
+```
 
-**Ficheiro: `src/admin/pages/MediaPage.tsx`**
+### VisualCarousel - Autoplay
+```typescript
+import Autoplay from 'embla-carousel-autoplay';
 
-- Substituir o `<label><input type="file">` por um `<Button>` que abre o `MediaUploadModal`
-- Adicionar estado `showUploadModal` e renderizar o modal
-- Manter toda a logica existente de visualizacao, edicao e eliminacao
+// Usar plugin condicionalmente
+const plugins = autoplay ? [Autoplay({ delay: 4000, stopOnInteraction: true, stopOnMouseEnter: true })] : [];
+const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true, ... }, plugins);
+```
 
-**Ficheiro: `src/admin/hooks/useMedia.ts`**
-
-- O hook `useUploadMedia` ja suporta `title`, `description` e `tags` como parametros -- nao precisa de alteracoes no hook
-- Apenas o modal novo vai chamar `uploadMedia.mutateAsync({ file, title, description, tags })` com os campos preenchidos
+### MediaPicker - Layout fixo
+```typescript
+// Estrutura corrigida da tab library:
+<TabsContent value="library" className="flex-1 flex flex-col overflow-hidden px-6 pb-6">
+  {/* Search - fixo no topo */}
+  <div className="relative mb-4 shrink-0">...</div>
+  
+  {/* Grid com scroll proprio */}
+  <ScrollArea className="flex-1 min-h-0">
+    <div className="grid grid-cols-3 md:grid-cols-4 gap-3 pr-4">...</div>
+  </ScrollArea>
+  
+  {/* Botao - fixo no fundo */}
+  <div className="flex justify-end gap-2 mt-4 pt-4 border-t shrink-0">...</div>
+</TabsContent>
+```
 
 ---
 
-## Resumo de Ficheiros
+## Ficheiros a Modificar
 
-| Ficheiro | Accao |
-|----------|-------|
-| `src/components/news/HeroChat.tsx` | Redesenhar carrossel: imagem limpa + titulo fora |
-| `src/components/news/VisualCarousel.tsx` | Padronizar dimensoes para aspect-video, setas/dots dentro do painel |
-| `src/components/news/NewsCard.tsx` | Ajustar wrapper do VisualCarousel |
-| `src/admin/components/media/MediaUploadModal.tsx` | **Novo** - Modal de upload em lote com metadados |
-| `src/admin/pages/MediaPage.tsx` | Usar o novo modal em vez do input file directo |
+| Ficheiro | Alteracao |
+|----------|-----------|
+| `src/admin/components/editor/PublishPanel.tsx` | Esconder seccao imagem de capa para visual; ajustar condicao de publicacao |
+| `src/admin/pages/ArticleEditorPage.tsx` | Auto-preencher image_url da galeria ao publicar visual |
+| `src/components/news/VisualCarousel.tsx` | Adicionar prop autoplay com embla-carousel-autoplay |
+| `src/components/news/NewsCard.tsx` | Passar autoplay=true ao carousel no feed |
+| `src/admin/components/media/MediaPicker.tsx` | Fixar botao de seleccao no fundo, scroll na grelha |
+| `src/admin/components/editor/VisualEditor.tsx` | Usar sempre aspect-video nos thumbnails |
 
 ---
 
-## Secacao Tecnica
+## Resultado Esperado
 
-### HeroChat.tsx - Estrutura do card redesenhado
-```tsx
-<motion.button
-  onClick={() => handleArticleChat(item.data.id)}
-  className="group block w-full overflow-hidden rounded-xl border bg-card text-left"
-  whileHover={{ scale: 1.02 }}
-  whileTap={{ scale: 0.98 }}
->
-  {/* Imagem limpa - sem overlay */}
-  <div className="overflow-hidden">
-    <img
-      src={getValidImageUrl(item.data.imageUrl)}
-      alt={item.data.title}
-      className="aspect-[16/10] w-full object-cover transition-transform duration-300 group-hover:scale-105"
-      onError={(e) => { e.currentTarget.src = '/placeholder.svg'; }}
-    />
-  </div>
-  {/* Titulo fora da imagem */}
-  <div className="p-3">
-    <h3 className="font-display text-sm font-semibold leading-tight line-clamp-2">
-      {item.data.title}
-    </h3>
-  </div>
-</motion.button>
-```
-
-### VisualCarousel.tsx - Padronizacao
-- Remover o efeito de escala/opacidade no formato vertical
-- Usar `aspect-video` em ambos os formatos
-- Posicionar setas e dots com `absolute` dentro do container `overflow-hidden`
-- Manter dots abaixo da imagem mas dentro do card
-
-### MediaUploadModal.tsx - Estado interno
-```tsx
-interface UploadItem {
-  file: File;
-  preview: string;         // URL.createObjectURL
-  title: string;
-  caption: string;
-  tags: string[];
-  status: 'pending' | 'uploading' | 'success' | 'error';
-  error?: string;
-}
-```
-- Usa o hook `useUploadMedia` existente para cada ficheiro
-- Validacao: tipo MIME (image/jpeg, image/png, image/webp), tamanho <= 10MB, max 5 ficheiros
-- Cleanup de `URL.createObjectURL` no unmount
+- Uma unica opcao de publicacao para noticias visuais (sem pedir imagem de capa separada)
+- Seleccionar fotos na galeria e publicar directamente
+- Carousel com autoplay no feed (4s por imagem, pausa ao interagir)
+- MediaPicker com botao sempre visivel e imagens com scroll
+- Thumbnails consistentes no editor independentemente do formato
