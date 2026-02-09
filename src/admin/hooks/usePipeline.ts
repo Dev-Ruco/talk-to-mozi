@@ -308,12 +308,64 @@ export function usePipeline() {
     },
   });
 
-  // Organize articles by column
-  const inboxArticles = articles.filter(a => a.status === 'captured');
+  // Auto-cleanup: delete non-published articles older than 12 hours (once per mount)
+  const cleanupDoneRef = useRef(false);
+  const cleanupOldArticles = useMutation({
+    mutationFn: async () => {
+      const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+      const { error } = await supabase
+        .from('articles')
+        .delete()
+        .in('status', ['captured', 'rewritten', 'pending', 'approved', 'needs_image'])
+        .lt('captured_at', twelveHoursAgo);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      refetchArticles();
+    },
+  });
+
+  useEffect(() => {
+    if (!isLoadingArticles && !cleanupDoneRef.current) {
+      cleanupDoneRef.current = true;
+      cleanupOldArticles.mutate();
+    }
+  }, [isLoadingArticles]);
+
+  // Reset pipeline mutation
+  const resetPipeline = useMutation({
+    mutationFn: async () => {
+      await supabase
+        .from('rewrite_queue')
+        .delete()
+        .in('status', ['queued', 'processing']);
+      
+      const { error } = await supabase
+        .from('articles')
+        .delete()
+        .in('status', ['captured', 'rewritten', 'pending', 'approved', 'needs_image', 'scheduled']);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Pipeline reiniciado');
+      refetchArticles();
+      refetchQueue();
+    },
+    onError: () => {
+      toast.error('Erro ao reiniciar pipeline');
+    },
+  });
+
+  // Organize articles by column (with 12h filter for work columns)
+  const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+  const inboxArticles = articles.filter(a => a.status === 'captured' && (a.captured_at ?? '') > twelveHoursAgo);
   const pendingArticles = articles.filter(a => 
-    a.status === 'rewritten' || a.status === 'pending' || a.status === 'approved' || a.status === 'needs_image'
+    (a.status === 'rewritten' || a.status === 'pending' || a.status === 'approved' || a.status === 'needs_image')
+    && (a.captured_at ?? '') > twelveHoursAgo
   );
-  const publishedArticles = articles.filter(a => a.status === 'published');
+  const publishedArticles = articles
+    .filter(a => a.status === 'published')
+    .slice(0, 6);
   const scheduledArticles = articles.filter(a => a.status === 'scheduled');
 
   // Get articles in queue
@@ -357,6 +409,10 @@ export function usePipeline() {
     isDeleting: deleteArticles.isPending,
     isPublishing: publishArticle.isPending,
     isForceRewriting: forceRewrite.isPending,
+    
+    // Reset
+    resetPipeline: resetPipeline.mutate,
+    isResetting: resetPipeline.isPending,
     
     // Refetch
     refetch: () => {

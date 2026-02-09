@@ -238,6 +238,12 @@ export function PipelineBoard() {
               }}
             />
           ))}
+          <a
+            href="/admin/articles"
+            className="block text-center text-sm text-primary hover:underline py-2"
+          >
+            Ver todos os artigos →
+          </a>
         </PipelineColumn>
       </div>
 

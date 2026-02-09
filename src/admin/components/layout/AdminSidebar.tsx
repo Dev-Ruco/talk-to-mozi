@@ -6,6 +6,7 @@ import {
   Edit3,
   Calendar,
   CheckCircle,
+  FileText,
   Rss,
   Megaphone,
   Bot,
@@ -25,6 +26,7 @@ import { Workflow } from 'lucide-react';
 const navItems = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
   { to: '/admin/pipeline', icon: Workflow, label: 'Pipeline', roles: ['admin', 'editor_chefe', 'editor', 'revisor'] },
+  { to: '/admin/articles', icon: FileText, label: 'Artigos', roles: ['admin', 'editor_chefe', 'editor'] },
   { divider: true },
   { to: '/admin/media', icon: Image, label: 'Galeria', roles: ['admin', 'editor_chefe', 'editor'] },
   { to: '/admin/sources', icon: Rss, label: 'Fontes', roles: ['admin', 'editor_chefe'] },
