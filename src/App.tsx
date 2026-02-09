@@ -23,6 +23,7 @@ import TeamPage from "./admin/pages/TeamPage";
 import SettingsPage from "./admin/pages/SettingsPage";
 import ArticleEditorPage from "./admin/pages/ArticleEditorPage";
 import MediaPage from "./admin/pages/MediaPage";
+import ArticlesPage from "./admin/pages/ArticlesPage";
 
 // Create QueryClient outside component to prevent recreation on every render
 const queryClient = new QueryClient({
@@ -54,6 +55,7 @@ const App = () => (
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/pipeline" element={<PipelinePage />} />
+          <Route path="/admin/articles" element={<ArticlesPage />} />
           <Route path="/admin/sources" element={<SourcesPage />} />
           <Route path="/admin/ads" element={<AdsPage />} />
           <Route path="/admin/agent" element={<AgentPage />} />

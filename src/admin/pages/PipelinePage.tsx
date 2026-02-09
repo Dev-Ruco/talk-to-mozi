@@ -1,8 +1,18 @@
+import { useState } from 'react';
 import { AdminLayout } from '../components/layout/AdminLayout';
 import { PipelineBoard } from '../components/pipeline/PipelineBoard';
-import { Workflow } from 'lucide-react';
+import { Workflow, RotateCcw, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { usePipeline } from '../hooks/usePipeline';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function PipelinePage() {
+  const { resetPipeline, isResetting } = usePipeline();
+  const [resetOpen, setResetOpen] = useState(false);
+
   return (
     <AdminLayout>
       <div className="space-y-4">
@@ -19,11 +29,43 @@ export default function PipelinePage() {
               </p>
             </div>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setResetOpen(true)}
+            disabled={isResetting}
+            className="gap-2 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+          >
+            {isResetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+            Reiniciar Pipeline
+          </Button>
         </div>
 
         {/* Pipeline Board */}
         <PipelineBoard />
       </div>
+
+      <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reiniciar Pipeline?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem a certeza? Isto vai eliminar todos os artigos não publicados do pipeline.
+              Artigos já publicados não serão afectados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { resetPipeline(); setResetOpen(false); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Reiniciar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 }
