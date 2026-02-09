@@ -1,141 +1,200 @@
 
-# Correcao do Visual Editor e Fluxo de Publicacao de Noticias Visuais
+# Gestao de Artigos Publicados e Limpeza Automatica do Pipeline
 
-## Problemas Identificados
+## Resumo
 
-### 1. Publicacao duplicada
-O PublishPanel (painel direito) exige imagem de capa + conteudo textual para publicar (`disabled={!article.title || !article.content || !hasValidImage}`), e mostra campos de "Imagem de Capa" separados da galeria do VisualEditor. Isto forca o utilizador a carregar uma foto extra e cria publicacao duplicada (uma como artigo, outra como visual).
-
-### 2. Preview do carousel nao funciona correctamente
-O VisualEditor na linha 141 ainda usa `aspect-[4/5]` para formato vertical nos thumbnails do editor. O preview do carousel funciona, mas as imagens do editor mostram aspect ratios diferentes conforme o formato.
-
-### 3. MediaPicker oculta o botao de seleccionar
-O MediaPicker (`MediaPicker.tsx`) usa `ScrollArea` para a grelha de imagens mas o botao "Inserir Imagem" (linhas 146-157) fica fora do scroll. Quando ha muitas imagens, a grelha empurra o conteudo e o botao pode ficar oculto ou inacessivel.
-
-### 4. Feed: carousel sem autoplay
-O VisualCarousel no feed usa navegacao manual (setas/dots) mas nao tem autoplay com possibilidade de pausar.
+Criar uma pagina dedicada de gestao de artigos publicados (`/admin/articles`) com tabela completa, filtros avancados e accoes de edicao/eliminacao. Limitar o pipeline a mostrar apenas os 6 artigos publicados mais recentes (com link para a pagina completa). Adicionar limpeza automatica de artigos com mais de 12 horas nas colunas Inbox, Reformulacao e Pendentes. Adicionar botao "Reiniciar Pipeline" para esvaziar todas as colunas de trabalho.
 
 ---
 
-## Solucao
+## Parte 1: Nova Pagina de Artigos Publicados
 
-### Parte 1: Simplificar PublishPanel para Noticias Visuais
+### Novo ficheiro: `src/admin/pages/ArticlesPage.tsx`
 
-**Ficheiro: `src/admin/components/editor/PublishPanel.tsx`**
+Pagina completa de gestao de todos os artigos publicados com:
 
-Quando `content_type === 'visual'`:
-- Esconder completamente a seccao "Imagem de Capa" (linhas 121-214) -- a galeria no VisualEditor e suficiente
-- Esconder campos de legenda da imagem
-- Alterar a condicao do botao "Publicar" de `!article.content || !hasValidImage` para `!article.gallery_urls || article.gallery_urls.length === 0` -- exigir apenas titulo + pelo menos 1 imagem na galeria
-- Usar a primeira imagem da galeria como `image_url` automaticamente ao publicar
+- Tabela com colunas: Titulo, Categoria, Data de publicacao (hora + data), Tipo (artigo/visual), Estado
+- Accoes por artigo: Editar (abre editor), Eliminar permanentemente, Preview (abre no site publico)
+- Filtros avancados:
+  - Pesquisa por titulo
+  - Filtro por categoria (dropdown)
+  - Filtro por mes/ano (selectores separados)
+  - Filtro por tipo de conteudo (artigo/visual)
+- Paginacao: 20 artigos por pagina com botoes Anterior/Seguinte e indicador de pagina
+- Eliminacao em lote: checkboxes + botao "Eliminar seleccionados" com confirmacao
+- Contador total de artigos
 
-### Parte 2: Corrigir ArticleEditorPage - Publicacao unica
+### Modificar: `src/App.tsx`
 
-**Ficheiro: `src/admin/pages/ArticleEditorPage.tsx`**
+- Adicionar rota `/admin/articles` para `ArticlesPage`
+- Importar o novo componente
 
-Na funcao `handlePublish`:
-- Se `content_type === 'visual'`, definir automaticamente `image_url` como a primeira imagem de `gallery_urls` (para o card no feed)
-- Nao exigir `content` para publicar noticias visuais (o conteudo textual existe da reformulacao IA mas nao e obrigatorio editar)
+### Modificar: `src/admin/components/layout/AdminSidebar.tsx`
 
-### Parte 3: Carousel com autoplay no Feed
-
-**Ficheiro: `src/components/news/VisualCarousel.tsx`**
-
-- Adicionar prop `autoplay?: boolean` (default `false`)
-- Quando `autoplay=true`, usar `embla-carousel-autoplay` (ja instalado) com intervalo de 4 segundos
-- Pausar autoplay ao hover ou ao tocar (mobile)
-- O autoplay so activa no feed (NewsCard), nao no editor ou pagina do artigo
-
-**Ficheiro: `src/components/news/NewsCard.tsx`**
-
-- Passar `autoplay={true}` ao VisualCarousel no card do feed
-
-### Parte 4: Corrigir MediaPicker - Scroll e botao visivel
-
-**Ficheiro: `src/admin/components/media/MediaPicker.tsx`**
-
-- Reestruturar o layout da tab "library" para que o botao "Inserir Imagem" fique sempre fixo no fundo do dialog, visivel independentemente do scroll
-- Dar altura fixa ao ScrollArea da grelha de imagens (ex: `max-h-[50vh]`) para nao empurrar o botao
-- Manter o mesmo fix na tab "upload"
-
-### Parte 5: Corrigir thumbnails do VisualEditor
-
-**Ficheiro: `src/admin/components/editor/VisualEditor.tsx`**
-
-- Linha 141: remover a condicao `format === 'vertical' ? 'aspect-[4/5]' : 'aspect-video'` e usar sempre `aspect-video` para os thumbnails, consistente com o que aparece no feed
-- Garantir que o formato "horizontal" funciona correctamente no preview (ja funciona, o carousel usa `aspect-video`)
+- Adicionar item "Artigos" no menu lateral com icone `FileText`, entre Pipeline e Galeria
+- Rota: `/admin/articles`
 
 ---
 
-## Detalhes Tecnicos
+## Parte 2: Pipeline - Limitar Publicados a 6
 
-### PublishPanel - Condicao de publicacao para visual
+### Modificar: `src/admin/hooks/usePipeline.ts`
+
+- Na query de artigos, manter o fetch de todos os estados necessarios
+- Na organizacao por colunas (linha ~330), limitar `publishedArticles` aos 6 mais recentes:
+
 ```typescript
-// Antes (exige content + imagem de capa separada):
-disabled={isSaving || !article.title || !article.content || !hasValidImage}
-
-// Depois (para visual, exige apenas titulo + galeria):
-const isVisual = article.content_type === 'visual';
-const canPublish = isVisual
-  ? !!article.title && (article.gallery_urls?.length ?? 0) > 0
-  : !!article.title && !!article.content && hasValidImage;
-
-disabled={isSaving || !canPublish}
+const publishedArticles = articles
+  .filter(a => a.status === 'published')
+  .slice(0, 6); // Apenas os 6 mais recentes
 ```
 
-### ArticleEditorPage - Auto-preencher image_url
-```typescript
-// No handlePublish, antes do update:
-const imageUrl = article.content_type === 'visual' && article.gallery_urls?.length
-  ? article.gallery_urls[0]  // Primeira imagem da galeria como capa
-  : article.image_url;
-```
+### Modificar: `src/admin/components/pipeline/PipelineBoard.tsx`
 
-### VisualCarousel - Autoplay
-```typescript
-import Autoplay from 'embla-carousel-autoplay';
-
-// Usar plugin condicionalmente
-const plugins = autoplay ? [Autoplay({ delay: 4000, stopOnInteraction: true, stopOnMouseEnter: true })] : [];
-const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true, ... }, plugins);
-```
-
-### MediaPicker - Layout fixo
-```typescript
-// Estrutura corrigida da tab library:
-<TabsContent value="library" className="flex-1 flex flex-col overflow-hidden px-6 pb-6">
-  {/* Search - fixo no topo */}
-  <div className="relative mb-4 shrink-0">...</div>
-  
-  {/* Grid com scroll proprio */}
-  <ScrollArea className="flex-1 min-h-0">
-    <div className="grid grid-cols-3 md:grid-cols-4 gap-3 pr-4">...</div>
-  </ScrollArea>
-  
-  {/* Botao - fixo no fundo */}
-  <div className="flex justify-end gap-2 mt-4 pt-4 border-t shrink-0">...</div>
-</TabsContent>
-```
+- Na coluna "Publicadas", adicionar um link "Ver todos os artigos" no final que navega para `/admin/articles`
+- Texto: "Ver todos os artigos →"
 
 ---
+
+## Parte 3: Limpeza Automatica (12 horas)
+
+### Modificar: `src/admin/hooks/usePipeline.ts`
+
+Adicionar filtragem no frontend para artigos nas colunas Inbox e Pendentes:
+
+```typescript
+const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+
+const inboxArticles = articles.filter(a => 
+  a.status === 'captured' && a.captured_at > twelveHoursAgo
+);
+const pendingArticles = articles.filter(a => 
+  ['rewritten', 'pending', 'approved', 'needs_image'].includes(a.status) && 
+  a.captured_at > twelveHoursAgo
+);
+```
+
+Adicionar uma mutation `cleanupOldArticles` que elimina artigos nao-publicados com mais de 12 horas:
+
+```typescript
+const cleanupOldArticles = useMutation({
+  mutationFn: async () => {
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+    const { error } = await supabase
+      .from('articles')
+      .delete()
+      .in('status', ['captured', 'rewritten', 'pending', 'approved', 'needs_image'])
+      .lt('captured_at', twelveHoursAgo);
+    if (error) throw error;
+  },
+});
+```
+
+Executar `cleanupOldArticles` automaticamente ao carregar o pipeline (uma vez por sessao).
+
+---
+
+## Parte 4: Botao "Reiniciar Pipeline"
+
+### Modificar: `src/admin/hooks/usePipeline.ts`
+
+Adicionar mutation `resetPipeline`:
+
+```typescript
+const resetPipeline = useMutation({
+  mutationFn: async () => {
+    // 1. Limpar fila de reformulacao
+    await supabase
+      .from('rewrite_queue')
+      .delete()
+      .in('status', ['queued', 'processing']);
+    
+    // 2. Eliminar todos os artigos nao-publicados
+    await supabase
+      .from('articles')
+      .delete()
+      .in('status', ['captured', 'rewritten', 'pending', 'approved', 'needs_image', 'scheduled']);
+  },
+});
+```
+
+### Modificar: `src/admin/pages/PipelinePage.tsx`
+
+- Adicionar botao "Reiniciar Pipeline" no header (icone `RotateCcw`), com dialog de confirmacao:
+  - "Tem a certeza? Isto vai eliminar todos os artigos nao publicados do pipeline."
+  - Botao destrutivo com confirmacao
+
+### Modificar: `src/admin/components/pipeline/PipelineBoard.tsx`
+
+- Receber e expor a funcao `resetPipeline` do hook
+
+---
+
+## Parte 5: Proteccao de Artigos Publicados
+
+A logica de limpeza (12h e reset) NUNCA toca em artigos com `status = 'published'`. Estes ficam sempre protegidos e acessiveis na pagina `/admin/articles`.
+
+---
+
+## Ficheiros a Criar
+
+| Ficheiro | Descricao |
+|----------|-----------|
+| `src/admin/pages/ArticlesPage.tsx` | Pagina completa de gestao de artigos publicados |
 
 ## Ficheiros a Modificar
 
 | Ficheiro | Alteracao |
 |----------|-----------|
-| `src/admin/components/editor/PublishPanel.tsx` | Esconder seccao imagem de capa para visual; ajustar condicao de publicacao |
-| `src/admin/pages/ArticleEditorPage.tsx` | Auto-preencher image_url da galeria ao publicar visual |
-| `src/components/news/VisualCarousel.tsx` | Adicionar prop autoplay com embla-carousel-autoplay |
-| `src/components/news/NewsCard.tsx` | Passar autoplay=true ao carousel no feed |
-| `src/admin/components/media/MediaPicker.tsx` | Fixar botao de seleccao no fundo, scroll na grelha |
-| `src/admin/components/editor/VisualEditor.tsx` | Usar sempre aspect-video nos thumbnails |
+| `src/App.tsx` | Adicionar rota `/admin/articles` |
+| `src/admin/components/layout/AdminSidebar.tsx` | Adicionar "Artigos" ao menu |
+| `src/admin/hooks/usePipeline.ts` | Limitar publicados a 6, cleanup 12h, reset pipeline |
+| `src/admin/components/pipeline/PipelineBoard.tsx` | Link "Ver todos", expor reset |
+| `src/admin/pages/PipelinePage.tsx` | Botao "Reiniciar Pipeline" com confirmacao |
 
 ---
 
-## Resultado Esperado
+## Seccao Tecnica
 
-- Uma unica opcao de publicacao para noticias visuais (sem pedir imagem de capa separada)
-- Seleccionar fotos na galeria e publicar directamente
-- Carousel com autoplay no feed (4s por imagem, pausa ao interagir)
-- MediaPicker com botao sempre visivel e imagens com scroll
-- Thumbnails consistentes no editor independentemente do formato
+### ArticlesPage - Paginacao
+
+```typescript
+const [page, setPage] = useState(1);
+const PAGE_SIZE = 20;
+
+// Query com paginacao
+const query = supabase
+  .from('articles')
+  .select('*, source:sources(id, name)', { count: 'exact' })
+  .eq('status', 'published')
+  .order('published_at', { ascending: false })
+  .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
+```
+
+### ArticlesPage - Filtros por mes/ano
+
+```typescript
+// Filtro por mes/ano usando published_at
+if (month && year) {
+  const start = new Date(year, month - 1, 1).toISOString();
+  const end = new Date(year, month, 0, 23, 59, 59).toISOString();
+  query = query.gte('published_at', start).lte('published_at', end);
+} else if (year) {
+  const start = new Date(year, 0, 1).toISOString();
+  const end = new Date(year, 11, 31, 23, 59, 59).toISOString();
+  query = query.gte('published_at', start).lte('published_at', end);
+}
+```
+
+### Eliminacao permanente com confirmacao
+
+```typescript
+const handleDelete = async (ids: string[]) => {
+  // Dialog de confirmacao
+  // Apos confirmar:
+  const { error } = await supabase
+    .from('articles')
+    .delete()
+    .in('id', ids);
+};
+```
