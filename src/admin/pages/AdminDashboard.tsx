@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { formatDistanceToNow } from 'date-fns';
+import { pt } from 'date-fns/locale';
 import { 
   Inbox, 
   Clock, 
   CheckCircle, 
-  Calendar, 
   TrendingUp, 
   Rss,
   AlertCircle,
@@ -15,97 +16,55 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 
-interface DashboardStats {
-  inbox: number;
-  pending: number;
-  scheduled: number;
-  published: number;
-  sources: number;
-  todayPublished: number;
-}
-
 export default function AdminDashboard() {
-  const [stats, setStats] = useState<DashboardStats>({
-    inbox: 0,
-    pending: 0,
-    scheduled: 0,
-    published: 0,
-    sources: 0,
-    todayPublished: 0,
-  });
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    fetchStats();
-  }, []);
-
-  const fetchStats = async () => {
-    try {
-      // Fetch counts in parallel
-      const [
-        inboxRes,
-        pendingRes,
-        scheduledRes,
-        publishedRes,
-        sourcesRes,
-        todayRes,
-      ] = await Promise.all([
-        supabase.from('articles').select('id', { count: 'exact', head: true }).in('status', ['captured', 'rewritten']),
-        supabase.from('articles').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-        supabase.from('articles').select('id', { count: 'exact', head: true }).eq('status', 'scheduled'),
+  const { data: stats, isLoading } = useQuery({
+    queryKey: ['dashboard-stats'],
+    queryFn: async () => {
+      const [inboxRes, pendingRes, publishedRes, sourcesRes, todayRes, lastLogRes] = await Promise.all([
+        supabase.from('articles').select('id', { count: 'exact', head: true }).eq('status', 'captured'),
+        supabase.from('articles').select('id', { count: 'exact', head: true }).in('status', ['rewritten', 'pending', 'approved', 'needs_image']),
         supabase.from('articles').select('id', { count: 'exact', head: true }).eq('status', 'published'),
         supabase.from('sources').select('id', { count: 'exact', head: true }).eq('is_active', true),
         supabase.from('articles').select('id', { count: 'exact', head: true })
           .eq('status', 'published')
           .gte('published_at', new Date().toISOString().split('T')[0]),
+        supabase.from('agent_logs').select('executed_at').order('executed_at', { ascending: false }).limit(1).maybeSingle(),
       ]);
-
-      setStats({
-        inbox: inboxRes.count || 0,
-        pending: pendingRes.count || 0,
-        scheduled: scheduledRes.count || 0,
-        published: publishedRes.count || 0,
-        sources: sourcesRes.count || 0,
-        todayPublished: todayRes.count || 0,
-      });
-    } catch (error) {
-      console.error('Error fetching stats:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      return {
+        inbox: inboxRes.count ?? 0,
+        pending: pendingRes.count ?? 0,
+        published: publishedRes.count ?? 0,
+        sources: sourcesRes.count ?? 0,
+        todayPublished: todayRes.count ?? 0,
+        lastAgentRun: lastLogRes.data?.executed_at ?? null,
+      };
+    },
+    refetchInterval: 60000,
+  });
 
   const statCards = [
     {
       title: 'Inbox',
-      value: stats.inbox,
+      value: stats?.inbox ?? 0,
       icon: Inbox,
       description: 'Notícias captadas',
-      link: '/admin/inbox',
+      link: '/admin/pipeline',
       color: 'text-blue-500',
     },
     {
       title: 'Pendentes',
-      value: stats.pending,
+      value: stats?.pending ?? 0,
       icon: Clock,
       description: 'Aguardam revisão',
-      link: '/admin/pending',
+      link: '/admin/pipeline',
       color: 'text-yellow-500',
     },
     {
-      title: 'Agendadas',
-      value: stats.scheduled,
-      icon: Calendar,
-      description: 'Para publicação',
-      link: '/admin/scheduled',
-      color: 'text-purple-500',
-    },
-    {
       title: 'Publicadas',
-      value: stats.published,
+      value: stats?.published ?? 0,
       icon: CheckCircle,
       description: 'Total no sistema',
-      link: '/admin/published',
+      link: '/admin/articles',
       color: 'text-green-500',
     },
   ];
@@ -113,7 +72,7 @@ export default function AdminDashboard() {
   return (
     <AdminLayout title="Dashboard">
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         {statCards.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -151,11 +110,11 @@ export default function AdminDashboard() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Publicadas hoje</span>
-                <span className="font-semibold">{stats.todayPublished}</span>
+                <span className="font-semibold">{stats?.todayPublished ?? 0}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Fontes activas</span>
-                <span className="font-semibold">{stats.sources}</span>
+                <span className="font-semibold">{stats?.sources ?? 0}</span>
               </div>
             </div>
           </CardContent>
@@ -171,15 +130,15 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent className="space-y-2">
             <Button variant="outline" className="w-full justify-start" asChild>
-              <Link to="/admin/inbox">
+              <Link to="/admin/pipeline">
                 <Inbox className="mr-2 h-4 w-4" />
-                Ver Inbox ({stats.inbox})
+                Ver Pipeline ({stats?.inbox ?? 0})
               </Link>
             </Button>
             <Button variant="outline" className="w-full justify-start" asChild>
-              <Link to="/admin/pending">
-                <Clock className="mr-2 h-4 w-4" />
-                Rever Pendentes ({stats.pending})
+              <Link to="/admin/articles">
+                <CheckCircle className="mr-2 h-4 w-4" />
+                Ver Publicadas ({stats?.published ?? 0})
               </Link>
             </Button>
             <Button variant="outline" className="w-full justify-start" asChild>
@@ -210,7 +169,11 @@ export default function AdminDashboard() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Última execução</span>
-                <span className="text-sm">Há 5 min</span>
+                <span className="text-sm">
+                  {stats?.lastAgentRun
+                    ? formatDistanceToNow(new Date(stats.lastAgentRun), { addSuffix: true, locale: pt })
+                    : 'Sem dados'}
+                </span>
               </div>
               <Button variant="secondary" className="w-full" asChild>
                 <Link to="/admin/agent">Ver detalhes</Link>
