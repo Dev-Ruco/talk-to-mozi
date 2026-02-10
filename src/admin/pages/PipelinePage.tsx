@@ -3,6 +3,7 @@ import { AdminLayout } from '../components/layout/AdminLayout';
 import { PipelineBoard } from '../components/pipeline/PipelineBoard';
 import { Workflow, RotateCcw, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { usePipeline } from '../hooks/usePipeline';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -10,7 +11,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 export default function PipelinePage() {
-  const { resetPipeline, isResetting } = usePipeline();
+  const { resetPipeline, isResetting, inboxArticles, pendingArticles, publishedArticles } = usePipeline();
   const [resetOpen, setResetOpen] = useState(false);
 
   return (
@@ -24,9 +25,16 @@ export default function PipelinePage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold">Pipeline Editorial</h1>
-              <p className="text-sm text-muted-foreground">
-                Acompanhe o fluxo de artigos em tempo real
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-muted-foreground">
+                  Acompanhe o fluxo de artigos em tempo real
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <Badge variant="secondary" className="text-xs">{inboxArticles.length} inbox</Badge>
+                  <Badge variant="secondary" className="text-xs">{pendingArticles.length} pendentes</Badge>
+                  <Badge variant="secondary" className="text-xs">{publishedArticles.length} publicadas</Badge>
+                </div>
+              </div>
             </div>
           </div>
           <Button

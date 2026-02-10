@@ -147,6 +147,12 @@ export function PipelineCard({
                 {article.category}
               </Badge>
             )}
+            {article.content_type === 'visual' && (
+              <Badge variant="outline" className="text-xs gap-1">
+                <ImageIcon className="h-2.5 w-2.5" />
+                Visual
+              </Badge>
+            )}
           </div>
 
           {/* Time */}
