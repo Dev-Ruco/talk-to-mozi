@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { HeroChat } from '@/components/news/HeroChat';
+import { FeaturedArticle } from '@/components/news/FeaturedArticle';
 import { CategoryChips } from '@/components/news/CategoryChips';
 import { NewsFeed } from '@/components/news/NewsFeed';
 
@@ -12,6 +13,9 @@ const Index = () => {
       <div className="space-y-6">
         {/* Hero Chat - 70vh dominante */}
         <HeroChat />
+
+        {/* Featured Article */}
+        <FeaturedArticle />
         
         {/* Transition separator */}
         <div className="border-t pt-6">
