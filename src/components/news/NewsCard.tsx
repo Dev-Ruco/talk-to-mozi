@@ -21,6 +21,7 @@ export function NewsCard({ article, variant = 'default' }: NewsCardProps) {
   const navigate = useNavigate();
   const category = getCategoryById(article.category);
   const timeAgo = getTimeAgo(article.publishedAt);
+  const formattedDate = new Date(article.publishedAt).toLocaleDateString('pt-MZ', { day: 'numeric', month: 'short', year: 'numeric' });
   const CategoryIcon = category?.icon;
 
   const handleExplore = (e: React.MouseEvent) => {
@@ -77,7 +78,7 @@ export function NewsCard({ article, variant = 'default' }: NewsCardProps) {
             e.currentTarget.src = '/placeholder.svg';
           }}
         />
-        <div className="flex-1 min-w-0">
+         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium leading-tight line-clamp-2 group-hover:text-primary transition-colors">
             {article.title}
           </p>
@@ -88,6 +89,7 @@ export function NewsCard({ article, variant = 'default' }: NewsCardProps) {
             {CategoryIcon && <CategoryIcon className="mr-1 h-3 w-3" />}
             {category?.name}
           </Badge>
+          <p className="text-[10px] text-muted-foreground mt-1">{timeAgo} · {formattedDate}</p>
         </div>
       </Link>
     );
@@ -120,7 +122,7 @@ export function NewsCard({ article, variant = 'default' }: NewsCardProps) {
             {article.title}
           </h3>
           <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
-            <span>{timeAgo}</span>
+            <span>{timeAgo} · {formattedDate}</span>
             <span className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
               {article.readingTime} min
@@ -174,6 +176,9 @@ export function NewsCard({ article, variant = 'default' }: NewsCardProps) {
             {CategoryIcon && <CategoryIcon className="mr-1 h-3 w-3" />}
             {category?.name}
           </Badge>
+          <span className="text-xs text-muted-foreground">
+            {timeAgo} · {formattedDate}
+          </span>
           {!isVisual && (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <Clock className="h-3 w-3" />

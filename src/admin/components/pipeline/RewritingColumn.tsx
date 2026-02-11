@@ -1,4 +1,4 @@
-import { Bot, Loader2, Zap, Timer, Clock } from 'lucide-react';
+import { Bot, Loader2, Zap, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PipelineArticle, RewriteQueueItem } from '../../hooks/usePipeline';
 import { PipelineCard } from './PipelineCard';
@@ -6,7 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import { useState, useEffect } from 'react';
-import { useAgentSettings } from '../../hooks/useAgentSettings';
+
+const ESTIMATED_DURATION_SECONDS = 90;
 
 interface RewritingColumnProps {
   processingArticle: PipelineArticle | null;
@@ -17,91 +18,50 @@ interface RewritingColumnProps {
   onTriggerProcessQueue: () => void;
 }
 
+const formatTime = (seconds: number) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
+
 export function RewritingColumn({
   processingArticle,
   processingItem,
   queuedItems,
   onSkipQueue,
   onForceRewrite,
-  onTriggerProcessQueue,
 }: RewritingColumnProps) {
-  const [progress, setProgress] = useState(0);
-  const [countdown, setCountdown] = useState<number>(0);
-  const [elapsedTime, setElapsedTime] = useState<string>('0:00');
-  const [isTriggering, setIsTriggering] = useState(false);
-  const { data: agentSettings } = useAgentSettings();
+  const [realProgress, setRealProgress] = useState(0);
+  const [elapsedTime, setElapsedTime] = useState('0:00');
   const totalCount = (processingArticle ? 1 : 0) + queuedItems.length;
 
-  // Format time helper
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Calculate elapsed time since processing started
+  // Real progress based on started_at from DB
   useEffect(() => {
-    if (processingItem?.started_at) {
-      const updateElapsed = () => {
-        const startTime = new Date(processingItem.started_at!).getTime();
-        const now = Date.now();
-        const elapsedSeconds = Math.floor((now - startTime) / 1000);
-        setElapsedTime(formatTime(elapsedSeconds));
-      };
-      
-      updateElapsed();
-      const interval = setInterval(updateElapsed, 1000);
-      return () => clearInterval(interval);
-    } else {
+    if (!processingItem?.started_at) {
+      setRealProgress(0);
       setElapsedTime('0:00');
+      return;
     }
+
+    const updateProgress = () => {
+      const startTime = new Date(processingItem.started_at!).getTime();
+      const elapsed = (Date.now() - startTime) / 1000;
+      const pct = Math.min(95, (elapsed / ESTIMATED_DURATION_SECONDS) * 100);
+      setRealProgress(pct);
+      setElapsedTime(formatTime(Math.floor(elapsed)));
+    };
+
+    updateProgress();
+    const interval = setInterval(updateProgress, 1000);
+    return () => clearInterval(interval);
   }, [processingItem?.started_at]);
 
-  // Countdown timer for next processing - WITH AUTO TRIGGER
+  // When processing completes (item disappears via realtime), jump to 100%
   useEffect(() => {
-    if (!processingArticle && queuedItems.length > 0 && agentSettings) {
-      const intervalMinutes = parseInt(agentSettings.rewrite_interval_minutes) || 2;
-      const intervalSeconds = intervalMinutes * 60;
-      
-      setCountdown(intervalSeconds);
-      
-      const timer = setInterval(() => {
-        setCountdown(prev => {
-          if (prev <= 1) {
-            // TRIGGER PROCESS QUEUE when countdown reaches zero!
-            if (!isTriggering) {
-              setIsTriggering(true);
-              onTriggerProcessQueue();
-              // Reset triggering state after a delay
-              setTimeout(() => setIsTriggering(false), 5000);
-            }
-            return intervalSeconds; // Reset counter
-          }
-          return prev - 1;
-        });
-      }, 1000);
-      
-      return () => clearInterval(timer);
+    if (!processingItem) {
+      setRealProgress(prev => (prev > 0 ? 100 : 0));
     }
-  }, [processingArticle, queuedItems.length, agentSettings, onTriggerProcessQueue, isTriggering]);
-
-  // Simulate progress animation when processing
-  useEffect(() => {
-    if (processingItem?.started_at) {
-      setProgress(0);
-      const interval = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 95) return prev;
-          // Slow down as we approach 100%
-          const increment = Math.max(1, (100 - prev) / 20);
-          return Math.min(95, prev + increment);
-        });
-      }, 500);
-      return () => clearInterval(interval);
-    } else {
-      setProgress(0);
-    }
-  }, [processingItem?.started_at]);
+  }, [processingItem]);
 
   return (
     <div className="flex h-full min-w-[280px] flex-col rounded-xl border border-primary/30 bg-primary/5">
@@ -145,33 +105,26 @@ export function RewritingColumn({
                     <span className="font-mono">{elapsedTime}</span>
                   </div>
                 </div>
+
+                {/* Article title */}
+                <p className="text-sm font-medium line-clamp-2">
+                  "{processingArticle.title}"
+                </p>
+
                 <PipelineCard
                   article={processingArticle}
                   isProcessing
                   showCheckbox={false}
                 />
                 <div className="space-y-1">
-                  <Progress value={progress} className="h-2" />
+                  <Progress value={realProgress} className="h-2" />
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <Bot className="h-3 w-3 animate-pulse text-primary" />
                       Reformulando com IA...
                     </span>
-                    <span className="font-mono">{Math.round(progress)}%</span>
+                    <span className="font-mono">{Math.round(realProgress)}%</span>
                   </div>
-                </div>
-              </div>
-            )}
-
-            {/* Next processing countdown */}
-            {!processingArticle && queuedItems.length > 0 && (
-              <div className="flex items-center justify-between rounded-lg bg-muted/50 p-3 text-sm border border-border">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Timer className="h-4 w-4" />
-                  <span>Próximo processamento em:</span>
-                </div>
-                <div className="flex items-center gap-1 font-mono font-semibold text-primary">
-                  <span>{formatTime(countdown)}</span>
                 </div>
               </div>
             )}
@@ -183,19 +136,19 @@ export function RewritingColumn({
                   <Zap className="h-3 w-3" />
                   FILA DE ESPERA ({queuedItems.length})
                 </div>
-            {queuedItems.map((item, index) => (
-              item.article && (
-                <PipelineCard
-                  key={item.id}
-                  article={item.article}
-                  isQueued
-                  queuePosition={index + 1}
-                  showCheckbox={false}
-                  onSkipQueue={() => onSkipQueue(item.article_id)}
-                  onForceRewrite={() => onForceRewrite(item.article_id)}
-                />
-              )
-            ))}
+                {queuedItems.map((item, index) => (
+                  item.article && (
+                    <PipelineCard
+                      key={item.id}
+                      article={item.article}
+                      isQueued
+                      queuePosition={index + 1}
+                      showCheckbox={false}
+                      onSkipQueue={() => onSkipQueue(item.article_id)}
+                      onForceRewrite={() => onForceRewrite(item.article_id)}
+                    />
+                  )
+                ))}
               </div>
             )}
           </div>
