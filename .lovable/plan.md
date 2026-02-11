@@ -1,140 +1,130 @@
 
 
-# Melhorias ao Pipeline Editorial
+# Carrossel Hero com Efeito de Escala Central
 
-## Problemas Actuais
+## O que muda
 
-1. **Dashboard desactualizado** -- Os stat cards do Dashboard apontam para rotas antigas (`/admin/inbox`, `/admin/pending`, `/admin/published`) que ja nao existem como paginas independentes. O pipeline unificou tudo em `/admin/pipeline`, mas os links ficaram obsoletos.
+O carrossel de "Últimas Notícias" no Hero ganha um efeito visual onde o card central se amplia (escala maior) em relacao aos cards laterais, criando profundidade. Cada card passa a mostrar o tempo relativo de publicacao (ex: "Há 2h", "Há 3 dias") junto com a data.
 
-2. **Dashboard nao reflecte a realidade em tempo real** -- Os stats usam `useEffect` + `useState` manual em vez de `useQuery`, nao actualizam automaticamente e o campo "Ultima execucao: Ha 5 min" do Agente IA e hardcoded (estatico).
+## Efeito visual (referencia da imagem)
 
-3. **Rotas orfas no App.tsx** -- Existem paginas importadas no sidebar/routes que ja nao fazem sentido como destinos independentes (InboxPage, PendingPage, PublishedPage, EditingPage, ScheduledPage). O pipeline absorveu estas funcionalidades.
+```text
+        ÚLTIMAS NOTÍCIAS DE HOJE
 
-4. **Coluna Publicadas no pipeline sem accoes uteis** -- Os 6 artigos publicados mostram apenas "Despublicar" e "Eliminar", mas falta a accao "Ver no site" directamente no card (sem abrir o menu dropdown).
++--------+    +==============+    +--------+
+|        |    ||            ||    |        |
+|  card  |    ||   CARD     ||    |  card  |
+| menor  |    ||  CENTRAL   ||    | menor  |
+|        |    ||  (ampliado)||    |        |
++--------+    +==============+    +--------+
+                 ● ● ● ●
+```
 
-5. **Falta indicador visual de tipo de conteudo** -- Os PipelineCards nao mostram se o artigo e "Artigo" ou "Visual", o que e importante para a decisao editorial.
+- O card no centro tem `scale(1.05)` e `z-index` mais alto
+- Os cards laterais ficam com `scale(0.9)` e `opacity(0.7)`
+- A transicao entre estados e animada com CSS transitions (300ms)
 
-6. **Falta feedback de contagem no header do pipeline** -- O header da pagina Pipeline nao mostra um resumo rapido (ex: "12 inbox | 3 pendentes | 45 publicadas").
+## Implementacao tecnica
 
-7. **Accoes rapidas do Dashboard apontam para paginas erradas** -- Os botoes "Ver Inbox" e "Rever Pendentes" apontam para `/admin/inbox` e `/admin/pending` (paginas independentes), quando deviam apontar para `/admin/pipeline`.
+### Ficheiro: `src/components/news/HeroChat.tsx`
 
----
+**1. Tracking do slide activo com Embla API**
 
-## Solucao
+Substituir o uso do componente `<Carousel>` do shadcn por Embla directo (como ja e feito no `VisualCarousel.tsx`) para ter acesso ao `selectedScrollSnap()` e aplicar estilos dinamicos a cada slide.
 
-### Parte 1: Corrigir o Dashboard
+```typescript
+const [emblaRef, emblaApi] = useEmblaCarousel({
+  loop: true,
+  align: 'center', // Centrar o slide activo
+  containScroll: false, // Permitir que slides laterais fiquem visiveis
+}, [Autoplay({ delay: 5000, stopOnInteraction: true })]);
 
-**Ficheiro: `src/admin/pages/AdminDashboard.tsx`**
+const [selectedIndex, setSelectedIndex] = useState(0);
 
-- Migrar de `useEffect + useState` para `useQuery` (reactivo e com cache)
-- Corrigir todos os links dos stat cards para apontar para `/admin/pipeline` (Inbox, Pendentes) e `/admin/articles` (Publicadas)
-- Remover o card "Agendadas" dos stats (o pipeline nao tem coluna de agendadas visivel)
-- Buscar a ultima execucao real do agente IA da tabela `agent_logs` em vez do valor hardcoded
-- Corrigir os botoes de "Accoes Rapidas" para apontar para `/admin/pipeline`
+useEffect(() => {
+  if (!emblaApi) return;
+  const onSelect = () => setSelectedIndex(emblaApi.selectedScrollSnap());
+  emblaApi.on('select', onSelect);
+  onSelect();
+  return () => { emblaApi.off('select', onSelect); };
+}, [emblaApi]);
+```
 
-Stat cards corrigidos:
-- **Inbox** -> `/admin/pipeline` 
-- **Pendentes** -> `/admin/pipeline`
-- **Publicadas hoje** -> `/admin/articles`
-- **Total publicadas** -> `/admin/articles`
+**2. Estilo dinamico por slide**
 
-### Parte 2: Adicionar badge de tipo de conteudo ao PipelineCard
+Cada slide recebe classes condicionais baseadas na sua posicao relativa ao slide activo:
 
-**Ficheiro: `src/admin/components/pipeline/PipelineCard.tsx`**
+```typescript
+const getSlideStyle = (index: number) => {
+  const isActive = index === selectedIndex;
+  return cn(
+    'transition-all duration-300 ease-out',
+    isActive 
+      ? 'scale-105 z-10 opacity-100' 
+      : 'scale-90 opacity-70 z-0'
+  );
+};
+```
 
-- Adicionar um pequeno badge/icone junto aos metadados para distinguir "Artigo" de "Visual"
-- Usar icone `ImageIcon` para visual e `FileText` para artigo, inline com a source e categoria
+**3. Tempo relativo em cada card**
 
-### Parte 3: Adicionar resumo de contagens no header do Pipeline
+Adicionar informacao temporal a cada card de noticia:
 
-**Ficheiro: `src/admin/pages/PipelinePage.tsx`**
+```typescript
+// Funcao getTimeAgo (reutilizar do NewsCard.tsx ou criar inline)
+<p className="text-xs text-muted-foreground">
+  {getTimeAgo(article.publishedAt)} · {formatDate(article.publishedAt)}
+</p>
+```
 
-- Buscar as contagens do `usePipeline` (inboxArticles.length, pendingArticles.length, publishedArticles.length)
-- Mostrar como badges discretos ao lado do titulo: "Inbox 12 | Pendentes 3 | Publicadas 45"
+Formato: "Há 2h · 11 Fev 2026"
 
-### Parte 4: Limpar rotas orfas
+**4. Dots indicadores activos**
 
-**Ficheiro: `src/App.tsx`**
+Os dots passam a reflectir o slide activo:
 
-- Remover importacoes e rotas para paginas que ja nao sao usadas como destinos independentes mas que ainda podem existir como componentes internos:
-  - Verificar se `/admin/inbox`, `/admin/pending`, `/admin/published`, `/admin/editing`, `/admin/scheduled` existem como rotas -- se sim, redirecionar para `/admin/pipeline`
+```typescript
+<div className="mt-4 flex justify-center gap-2">
+  {carouselItems.map((_, index) => (
+    <button
+      key={index}
+      onClick={() => emblaApi?.scrollTo(index)}
+      className={cn(
+        'h-2 rounded-full transition-all duration-300',
+        index === selectedIndex 
+          ? 'w-6 bg-primary' 
+          : 'w-2 bg-primary/30'
+      )}
+    />
+  ))}
+</div>
+```
 
-**Nota**: As paginas InboxPage, PendingPage, etc. nao estao registadas no App.tsx actual, logo nao ha rotas orfas a limpar. Os links do Dashboard e que estao errados.
+## Titulo da seccao
 
----
+Adicionar o titulo "Últimas notícias de hoje" acima do carrossel, dentro do HeroChat, com estilo `font-display font-bold text-lg uppercase tracking-wide`.
 
-## Ficheiros a Modificar
+## Ficheiros a modificar
 
 | Ficheiro | Alteracao |
 |----------|-----------|
-| `src/admin/pages/AdminDashboard.tsx` | Migrar para useQuery, corrigir links, buscar dados reais do agente |
-| `src/admin/components/pipeline/PipelineCard.tsx` | Adicionar badge de tipo de conteudo (artigo/visual) |
-| `src/admin/pages/PipelinePage.tsx` | Mostrar contagens resumidas no header |
+| `src/components/news/HeroChat.tsx` | Migrar para Embla directo, efeito de escala central, tempo relativo nos cards, dots activos, titulo da seccao |
 
----
+Nenhum outro ficheiro e alterado.
 
-## Seccao Tecnica
+## Seccao Tecnica - Estrutura do card actualizado
 
-### Dashboard - Migracao para useQuery
-
-```typescript
-const { data: stats, isLoading } = useQuery({
-  queryKey: ['dashboard-stats'],
-  queryFn: async () => {
-    const [inboxRes, pendingRes, publishedRes, sourcesRes, todayRes, lastLogRes] = await Promise.all([
-      supabase.from('articles').select('id', { count: 'exact', head: true }).eq('status', 'captured'),
-      supabase.from('articles').select('id', { count: 'exact', head: true }).in('status', ['rewritten', 'pending', 'approved', 'needs_image']),
-      supabase.from('articles').select('id', { count: 'exact', head: true }).eq('status', 'published'),
-      supabase.from('sources').select('id', { count: 'exact', head: true }).eq('is_active', true),
-      supabase.from('articles').select('id', { count: 'exact', head: true })
-        .eq('status', 'published')
-        .gte('published_at', new Date().toISOString().split('T')[0]),
-      supabase.from('agent_logs').select('executed_at').order('executed_at', { ascending: false }).limit(1).maybeSingle(),
-    ]);
-    return {
-      inbox: inboxRes.count ?? 0,
-      pending: pendingRes.count ?? 0,
-      published: publishedRes.count ?? 0,
-      sources: sourcesRes.count ?? 0,
-      todayPublished: todayRes.count ?? 0,
-      lastAgentRun: lastLogRes.data?.executed_at ?? null,
-    };
-  },
-  refetchInterval: 60000, // Actualizar a cada minuto
-});
-```
-
-### Dashboard - Ultima execucao do agente (real)
-
-```typescript
-// Em vez de "Ha 5 min" hardcoded:
-{stats.lastAgentRun 
-  ? formatDistanceToNow(new Date(stats.lastAgentRun), { addSuffix: true, locale: pt })
-  : 'Sem dados'}
-```
-
-### PipelineCard - Badge de tipo
-
-```typescript
-// Junto aos badges de source e categoria, adicionar:
-{article.content_type === 'visual' && (
-  <Badge variant="outline" className="text-xs gap-1">
-    <ImageIcon className="h-2.5 w-2.5" />
-    Visual
-  </Badge>
-)}
-```
-
-### PipelinePage - Contagens no header
-
-```typescript
-const { inboxArticles, pendingArticles, publishedArticles } = usePipeline();
-
-// No header, apos a descricao:
-<div className="flex items-center gap-2 text-xs text-muted-foreground">
-  <Badge variant="secondary">{inboxArticles.length} inbox</Badge>
-  <Badge variant="secondary">{pendingArticles.length} pendentes</Badge>
-  <Badge variant="secondary">{publishedArticles.length} publicadas</Badge>
+```tsx
+<div className={cn('overflow-hidden rounded-xl border bg-card', getSlideStyle(index))}>
+  <img src={imageUrl} className="aspect-[16/10] w-full object-cover" />
+  <div className="p-3 space-y-1">
+    <h3 className="font-display text-sm font-semibold leading-tight line-clamp-2">
+      {title}
+    </h3>
+    <p className="text-xs text-muted-foreground">
+      {getTimeAgo(publishedAt)} · {new Date(publishedAt).toLocaleDateString('pt-MZ', { day: 'numeric', month: 'short', year: 'numeric' })}
+    </p>
+  </div>
 </div>
 ```
 
