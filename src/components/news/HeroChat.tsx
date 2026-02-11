@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Send } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -8,30 +8,66 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useLatestArticles } from '@/hooks/usePublishedArticles';
 import { useTrendingTopics } from '@/hooks/useTrendingTopics';
 import { sponsoredAds } from '@/data/ads';
-import { Carousel, CarouselContent, CarouselItem } from '@/components/ui/carousel';
 import { SponsoredCard } from './SponsoredCard';
+import useEmblaCarousel from 'embla-carousel-react';
 import Autoplay from 'embla-carousel-autoplay';
 import { getValidImageUrl } from '@/lib/imageUtils';
+import { cn } from '@/lib/utils';
 
 // Fallback topics if trending data is not available
 const fallbackTopics = ['inflação', 'combustível', 'chuvas', 'política', 'dólar', 'saúde', 'educação'];
 
+function getTimeAgo(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  
+  if (diffInSeconds < 60) return `Há ${diffInSeconds}s`;
+  if (diffInSeconds < 3600) return `Há ${Math.floor(diffInSeconds / 60)} min`;
+  if (diffInSeconds < 86400) return `Há ${Math.floor(diffInSeconds / 3600)}h`;
+  if (diffInSeconds < 2592000) return `Há ${Math.floor(diffInSeconds / 86400)}d`;
+  if (diffInSeconds < 31536000) return `Há ${Math.floor(diffInSeconds / 2592000)} meses`;
+  return `Há ${Math.floor(diffInSeconds / 31536000)} anos`;
+}
+
+function formatDate(dateString: string): string {
+  return new Date(dateString).toLocaleDateString('pt-MZ', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
 export function HeroChat() {
   const [query, setQuery] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const navigate = useNavigate();
   
-  // Fetch latest 4 articles from database
   const { data: latestArticles = [], isLoading: isLoadingArticles } = useLatestArticles(4);
-  
-  // Fetch trending topics
   const { data: trendingData, isLoading: isLoadingTrending } = useTrendingTopics();
-  
-  const autoplayPlugin = useRef(
-    Autoplay({ delay: 5000, stopOnInteraction: true })
+
+  const [emblaRef, emblaApi] = useEmblaCarousel(
+    {
+      loop: true,
+      align: 'center',
+      containScroll: false,
+    },
+    [Autoplay({ delay: 5000, stopOnInteraction: true })]
   );
 
-  // Use dynamic topics or fallback
+  const onSelect = useCallback(() => {
+    if (!emblaApi) return;
+    setSelectedIndex(emblaApi.selectedScrollSnap());
+  }, [emblaApi]);
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    emblaApi.on('select', onSelect);
+    onSelect();
+    return () => { emblaApi.off('select', onSelect); };
+  }, [emblaApi, onSelect]);
+
   const quickTopics = trendingData?.topics?.length 
     ? trendingData.topics.slice(0, 7)
     : fallbackTopics;
@@ -40,7 +76,6 @@ export function HeroChat() {
     e.preventDefault();
     if (query.trim()) {
       setIsSending(true);
-      // Small delay to show animation
       setTimeout(() => {
         navigate(`/chat?q=${encodeURIComponent(query.trim())}`);
       }, 200);
@@ -51,13 +86,22 @@ export function HeroChat() {
     navigate(`/artigo/${articleId}#chat`);
   };
 
-  // Mix articles with one sponsored ad (only if we have articles)
   const carouselItems = latestArticles.length > 0
     ? [
         ...latestArticles.map(a => ({ type: 'article' as const, data: a })),
         { type: 'ad' as const, data: sponsoredAds[0] }
       ]
     : [];
+
+  const getSlideStyle = (index: number) => {
+    const isActive = index === selectedIndex;
+    return cn(
+      'transition-all duration-300 ease-out',
+      isActive
+        ? 'scale-105 z-10 opacity-100'
+        : 'scale-90 opacity-70 z-0'
+    );
+  };
 
   return (
     <section className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-8 md:min-h-[60vh] md:py-12">
@@ -115,14 +159,13 @@ export function HeroChat() {
             </motion.div>
           </div>
           
-          {/* Quick topics - Dynamic */}
+          {/* Quick topics */}
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
               Exemplos do que pode perguntar:
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               {isLoadingTrending ? (
-                // Loading skeletons
                 <>
                   <Skeleton className="h-7 w-16 rounded-full" />
                   <Skeleton className="h-7 w-20 rounded-full" />
@@ -151,76 +194,86 @@ export function HeroChat() {
           </div>
         </motion.form>
         
-        {/* Visual Carousel */}
+        {/* Carousel with scale effect */}
         <motion.div 
           className="pt-6"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.5 }}
         >
+          {/* Section title */}
+          <h2 className="mb-4 font-display text-lg font-bold uppercase tracking-wide text-foreground">
+            Últimas notícias de hoje
+          </h2>
+
           {isLoadingArticles ? (
-            // Loading skeleton for carousel - 3 cards on desktop
             <div className="flex gap-4 overflow-hidden">
               <Skeleton className="aspect-[16/10] w-full shrink-0 rounded-xl md:w-1/2 lg:w-1/3" />
               <Skeleton className="hidden aspect-[16/10] w-1/2 shrink-0 rounded-xl md:block lg:w-1/3" />
               <Skeleton className="hidden aspect-[16/10] w-1/3 shrink-0 rounded-xl lg:block" />
             </div>
           ) : carouselItems.length > 0 ? (
-            <Carousel 
-              className="w-full"
-              opts={{
-                align: 'start',
-                loop: true,
-              }}
-              plugins={[autoplayPlugin.current]}
-            >
-              <CarouselContent>
-                {carouselItems.map((item, index) => (
-                  <CarouselItem key={index} className="basis-full md:basis-1/2 lg:basis-1/3">
-                    {item.type === 'article' ? (
-                      <motion.button
-                        onClick={() => handleArticleChat(item.data.id)}
-                        className="group block w-full overflow-hidden rounded-xl border bg-card text-left"
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                      >
-                        <div className="overflow-hidden">
-                          <img
-                            src={getValidImageUrl(item.data.imageUrl)}
-                            alt={item.data.title}
-                            className="aspect-[16/10] w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                            onError={(e) => {
-                              e.currentTarget.src = '/placeholder.svg';
-                            }}
-                          />
-                        </div>
-                        <div className="p-3">
-                          <h3 className="font-display text-sm font-semibold leading-tight line-clamp-2">
-                            {item.data.title}
-                          </h3>
-                        </div>
-                      </motion.button>
-                    ) : (
-                      <div className="overflow-hidden rounded-xl border bg-card">
-                        <SponsoredCard ad={item.data} variant="carousel" />
+            <>
+              <div className="overflow-hidden" ref={emblaRef}>
+                <div className="flex">
+                  {carouselItems.map((item, index) => (
+                    <div
+                      key={index}
+                      className="min-w-0 flex-[0_0_100%] px-2 md:flex-[0_0_50%] lg:flex-[0_0_33.333%]"
+                    >
+                      <div className={getSlideStyle(index)}>
+                        {item.type === 'article' ? (
+                          <button
+                            onClick={() => handleArticleChat(item.data.id)}
+                            className="group block w-full overflow-hidden rounded-xl border bg-card text-left"
+                          >
+                            <div className="overflow-hidden">
+                              <img
+                                src={getValidImageUrl(item.data.imageUrl)}
+                                alt={item.data.title}
+                                className="aspect-[16/10] w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                onError={(e) => {
+                                  e.currentTarget.src = '/placeholder.svg';
+                                }}
+                              />
+                            </div>
+                            <div className="p-3 space-y-1">
+                              <h3 className="font-display text-sm font-semibold leading-tight line-clamp-2">
+                                {item.data.title}
+                              </h3>
+                              <p className="text-xs text-muted-foreground">
+                                {getTimeAgo(item.data.publishedAt)} · {formatDate(item.data.publishedAt)}
+                              </p>
+                            </div>
+                          </button>
+                        ) : (
+                          <div className="overflow-hidden rounded-xl border bg-card">
+                            <SponsoredCard ad={item.data} variant="carousel" />
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </CarouselItem>
-                ))}
-            </CarouselContent>
-              
-              {/* Dots indicator */}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Active dots */}
               <div className="mt-4 flex justify-center gap-2">
                 {carouselItems.map((_, index) => (
-                  <div
+                  <button
                     key={index}
-                    className="h-2 w-2 rounded-full bg-primary/30"
+                    onClick={() => emblaApi?.scrollTo(index)}
+                    className={cn(
+                      'h-2 rounded-full transition-all duration-300',
+                      index === selectedIndex
+                        ? 'w-6 bg-primary'
+                        : 'w-2 bg-primary/30'
+                    )}
                   />
                 ))}
               </div>
-            </Carousel>
+            </>
           ) : (
-            // Empty state - no articles yet
             <div className="flex h-48 items-center justify-center rounded-xl border border-dashed border-muted-foreground/30">
               <p className="text-sm text-muted-foreground">
                 Ainda não há notícias publicadas.
