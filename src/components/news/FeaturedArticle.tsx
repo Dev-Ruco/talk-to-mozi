@@ -1,8 +1,19 @@
 import { useNavigate } from 'react-router-dom';
-import { MessageCircle } from 'lucide-react';
+import { Clock, MessageCircle } from 'lucide-react';
 import { useFeaturedArticle } from '@/hooks/useFeaturedArticle';
 import { Button } from '@/components/ui/button';
 import { getValidImageUrl } from '@/lib/imageUtils';
+
+function getTimeAgo(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  if (diffInSeconds < 60) return 'Agora';
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} min`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h`;
+  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d`;
+  return date.toLocaleDateString('pt-MZ', { day: 'numeric', month: 'short' });
+}
 
 export function FeaturedArticle() {
   const { data: article } = useFeaturedArticle();
@@ -38,9 +49,14 @@ export function FeaturedArticle() {
 
         {/* Content */}
         <div className="flex flex-1 flex-col justify-center gap-3 p-5">
-          <h3 className="font-display text-xl font-semibold leading-tight group-hover:text-primary transition-colors">
+         <h3 className="font-display text-xl font-semibold leading-tight group-hover:text-primary transition-colors">
             {article.title}
           </h3>
+
+          <p className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Clock className="h-3 w-3" />
+            {getTimeAgo(article.publishedAt)} · {new Date(article.publishedAt).toLocaleDateString('pt-MZ', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </p>
 
           {article.summary && (
             <p className="text-sm text-muted-foreground line-clamp-2">
