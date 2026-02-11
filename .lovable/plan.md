@@ -1,130 +1,140 @@
 
 
-# Carrossel Hero com Efeito de Escala Central
+# Barra de Progresso Real + Datas em Todos os Cards
 
-## O que muda
+## Problema 1: Coluna "Em Reformulacao" nao funciona correctamente
 
-O carrossel de "Últimas Notícias" no Hero ganha um efeito visual onde o card central se amplia (escala maior) em relacao aos cards laterais, criando profundidade. Cada card passa a mostrar o tempo relativo de publicacao (ex: "Há 2h", "Há 3 dias") junto com a data.
+O progresso actual e 100% simulado no browser (incrementa sozinho ate 95% e reinicia ao recarregar). O countdown tambem reinicia ao recarregar e nunca chega a processar nada de verdade. Os artigos ficam eternamente "queued" sem nunca passarem a "processing".
 
-## Efeito visual (referencia da imagem)
+**Causa raiz**: O countdown do frontend tenta chamar `process-queue` quando chega a zero, mas como reinicia ao recarregar a pagina, nunca funciona de forma fiavel. O progresso nao esta ligado a nenhum dado real da base de dados.
+
+## Problema 2: Datas so aparecem no carrossel
+
+Os cards de noticias no feed (variante `default`), na sidebar (`sidebar`) e no FeaturedArticle nao mostram ha quanto tempo foram publicados.
+
+---
+
+## Solucao
+
+### Parte 1: Barra de progresso real na RewritingColumn
+
+Substituir a logica simulada por progresso baseado no estado real da `rewrite_queue`:
+
+- **Sem `started_at`** (status `queued`): barra a 0%, texto "Na fila"
+- **Com `started_at` mas sem `completed_at`** (status `processing`): barra animada com efeito de preenchimento gradual baseado no tempo decorrido (estimativa de 60s), mostrando o titulo do artigo em processamento
+- **Com `completed_at`** (status `completed`): barra a 100%
+
+A barra persiste entre recarregamentos porque le o `started_at` real da base de dados.
+
+Remover o countdown falso. Manter apenas a indicacao de quantos artigos estao na fila.
+
+**Ficheiro: `src/admin/components/pipeline/RewritingColumn.tsx`**
+
+- Remover o `useState` de `progress`, `countdown`, `elapsedTime`, `isTriggering`
+- Remover os 3 `useEffect` que simulam progresso e countdown
+- Calcular o progresso real a partir do `processingItem.started_at` (estimativa: 0-100% em ~90 segundos, baseado no tempo medio de processamento da IA)
+- Mostrar o titulo do artigo em processamento acima da barra
+- Usar um `useEffect` com `setInterval` de 1s que calcula `Math.min(95, (elapsed / estimatedDuration) * 100)` -- nunca ultrapassa 95% ate o status mudar para `completed` via realtime
+- Quando o realtime detecta `completed`, a barra salta para 100% e depois limpa
 
 ```text
-        ÚLTIMAS NOTÍCIAS DE HOJE
-
-+--------+    +==============+    +--------+
-|        |    ||            ||    |        |
-|  card  |    ||   CARD     ||    |  card  |
-| menor  |    ||  CENTRAL   ||    | menor  |
-|        |    ||  (ampliado)||    |        |
-+--------+    +==============+    +--------+
-                 ● ● ● ●
++----------------------------------------------+
+|  A REFORMULAR AGORA                          |
+|  "Titulo do artigo em processamento..."      |
+|  [=============================-------] 72%  |
+|  Reformulando com IA... | 1:05 decorrido     |
++----------------------------------------------+
 ```
 
-- O card no centro tem `scale(1.05)` e `z-index` mais alto
-- Os cards laterais ficam com `scale(0.9)` e `opacity(0.7)`
-- A transicao entre estados e animada com CSS transitions (300ms)
+### Parte 2: Datas em todos os cards de noticias
 
-## Implementacao tecnica
+**Ficheiro: `src/components/news/NewsCard.tsx`**
 
-### Ficheiro: `src/components/news/HeroChat.tsx`
+Adicionar tempo relativo + data em todas as variantes:
 
-**1. Tracking do slide activo com Embla API**
+- **Variante `default`**: Adicionar `{timeAgo} · {formattedDate}` na zona de categoria/tempo (linha 169-183), junto ao badge de categoria
+- **Variante `sidebar`**: Adicionar `{timeAgo}` abaixo do badge de categoria
+- **Variante `compact`**: Ja tem `timeAgo` -- adicionar a data formatada ao lado
 
-Substituir o uso do componente `<Carousel>` do shadcn por Embla directo (como ja e feito no `VisualCarousel.tsx`) para ter acesso ao `selectedScrollSnap()` e aplicar estilos dinamicos a cada slide.
+Formato: "Ha 2h · 11 Fev 2026" ou "Agora · 11 Fev 2026"
 
-```typescript
-const [emblaRef, emblaApi] = useEmblaCarousel({
-  loop: true,
-  align: 'center', // Centrar o slide activo
-  containScroll: false, // Permitir que slides laterais fiquem visiveis
-}, [Autoplay({ delay: 5000, stopOnInteraction: true })]);
+**Ficheiro: `src/components/news/FeaturedArticle.tsx`**
 
-const [selectedIndex, setSelectedIndex] = useState(0);
+Adicionar tempo relativo + data abaixo do titulo, antes do summary.
 
-useEffect(() => {
-  if (!emblaApi) return;
-  const onSelect = () => setSelectedIndex(emblaApi.selectedScrollSnap());
-  emblaApi.on('select', onSelect);
-  onSelect();
-  return () => { emblaApi.off('select', onSelect); };
-}, [emblaApi]);
-```
+---
 
-**2. Estilo dinamico por slide**
-
-Cada slide recebe classes condicionais baseadas na sua posicao relativa ao slide activo:
-
-```typescript
-const getSlideStyle = (index: number) => {
-  const isActive = index === selectedIndex;
-  return cn(
-    'transition-all duration-300 ease-out',
-    isActive 
-      ? 'scale-105 z-10 opacity-100' 
-      : 'scale-90 opacity-70 z-0'
-  );
-};
-```
-
-**3. Tempo relativo em cada card**
-
-Adicionar informacao temporal a cada card de noticia:
-
-```typescript
-// Funcao getTimeAgo (reutilizar do NewsCard.tsx ou criar inline)
-<p className="text-xs text-muted-foreground">
-  {getTimeAgo(article.publishedAt)} · {formatDate(article.publishedAt)}
-</p>
-```
-
-Formato: "Há 2h · 11 Fev 2026"
-
-**4. Dots indicadores activos**
-
-Os dots passam a reflectir o slide activo:
-
-```typescript
-<div className="mt-4 flex justify-center gap-2">
-  {carouselItems.map((_, index) => (
-    <button
-      key={index}
-      onClick={() => emblaApi?.scrollTo(index)}
-      className={cn(
-        'h-2 rounded-full transition-all duration-300',
-        index === selectedIndex 
-          ? 'w-6 bg-primary' 
-          : 'w-2 bg-primary/30'
-      )}
-    />
-  ))}
-</div>
-```
-
-## Titulo da seccao
-
-Adicionar o titulo "Últimas notícias de hoje" acima do carrossel, dentro do HeroChat, com estilo `font-display font-bold text-lg uppercase tracking-wide`.
-
-## Ficheiros a modificar
+## Ficheiros a Modificar
 
 | Ficheiro | Alteracao |
 |----------|-----------|
-| `src/components/news/HeroChat.tsx` | Migrar para Embla directo, efeito de escala central, tempo relativo nos cards, dots activos, titulo da seccao |
+| `src/admin/components/pipeline/RewritingColumn.tsx` | Remover logica simulada, calcular progresso real a partir de `started_at`, mostrar titulo do artigo |
+| `src/components/news/NewsCard.tsx` | Adicionar `timeAgo + data` nas variantes `default` e `sidebar` |
+| `src/components/news/FeaturedArticle.tsx` | Adicionar `timeAgo + data` abaixo do titulo |
 
-Nenhum outro ficheiro e alterado.
+---
 
-## Seccao Tecnica - Estrutura do card actualizado
+## Seccao Tecnica
 
-```tsx
-<div className={cn('overflow-hidden rounded-xl border bg-card', getSlideStyle(index))}>
-  <img src={imageUrl} className="aspect-[16/10] w-full object-cover" />
-  <div className="p-3 space-y-1">
-    <h3 className="font-display text-sm font-semibold leading-tight line-clamp-2">
-      {title}
-    </h3>
-    <p className="text-xs text-muted-foreground">
-      {getTimeAgo(publishedAt)} · {new Date(publishedAt).toLocaleDateString('pt-MZ', { day: 'numeric', month: 'short', year: 'numeric' })}
-    </p>
-  </div>
-</div>
+### RewritingColumn - Progresso real
+
+```typescript
+// Calcular progresso baseado no tempo real decorrido
+const ESTIMATED_DURATION_SECONDS = 90; // Estimativa de 90s para reformulacao
+
+const [realProgress, setRealProgress] = useState(0);
+
+useEffect(() => {
+  if (!processingItem?.started_at) {
+    setRealProgress(0);
+    return;
+  }
+  
+  const updateProgress = () => {
+    const startTime = new Date(processingItem.started_at!).getTime();
+    const elapsed = (Date.now() - startTime) / 1000;
+    const pct = Math.min(95, (elapsed / ESTIMATED_DURATION_SECONDS) * 100);
+    setRealProgress(pct);
+  };
+  
+  updateProgress();
+  const interval = setInterval(updateProgress, 1000);
+  return () => clearInterval(interval);
+}, [processingItem?.started_at]);
+
+// Quando o status muda para completed (via realtime), saltar para 100%
+useEffect(() => {
+  if (!processingItem) {
+    // Se nao ha item em processing, e porque completou
+    setRealProgress(prev => prev > 0 ? 100 : 0);
+  }
+}, [processingItem]);
+```
+
+### NewsCard - Tempo relativo + data em todas as variantes
+
+```typescript
+const formattedDate = new Date(article.publishedAt).toLocaleDateString('pt-MZ', {
+  day: 'numeric', month: 'short', year: 'numeric'
+});
+
+// Na variante default, junto ao badge de categoria:
+<span className="text-xs text-muted-foreground">
+  {timeAgo} · {formattedDate}
+</span>
+
+// Na variante sidebar, abaixo do badge:
+<span className="text-[10px] text-muted-foreground mt-1">
+  {timeAgo} · {formattedDate}
+</span>
+```
+
+### FeaturedArticle - Tempo relativo
+
+```typescript
+// Abaixo do titulo:
+<p className="text-xs text-muted-foreground">
+  {getTimeAgo(article.published_at)} · {new Date(article.published_at).toLocaleDateString('pt-MZ', { day: 'numeric', month: 'short', year: 'numeric' })}
+</p>
 ```
 
