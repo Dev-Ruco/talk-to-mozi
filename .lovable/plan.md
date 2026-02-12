@@ -1,140 +1,169 @@
 
+# Workflow Visual no Pipeline Existente
 
-# Barra de Progresso Real + Datas em Todos os Cards
+## Principio: Zero Redundancia
 
-## Problema 1: Coluna "Em Reformulacao" nao funciona correctamente
+Nao criar tabelas novas, paginas novas, nem edge functions novas. Tudo ja existe -- falta apenas VISUALIZAR o fluxo de trabalho sobre o pipeline actual.
 
-O progresso actual e 100% simulado no browser (incrementa sozinho ate 95% e reinicia ao recarregar). O countdown tambem reinicia ao recarregar e nunca chega a processar nada de verdade. Os artigos ficam eternamente "queued" sem nunca passarem a "processing".
+## O que ja existe e NAO deve ser duplicado
 
-**Causa raiz**: O countdown do frontend tenta chamar `process-queue` quando chega a zero, mas como reinicia ao recarregar a pagina, nunca funciona de forma fiavel. O progresso nao esta ligado a nenhum dado real da base de dados.
+| Elemento | Onde esta | Accao |
+|----------|-----------|-------|
+| Configuracoes do agente (intervalos, threshold, auto-rewrite) | SettingsPage > Tab "Agente IA" | Manter como esta |
+| Tabela `agent_settings` | Base de dados | Reutilizar |
+| Tabela `agent_logs` | Base de dados (ja rastreia cada passo) | Reutilizar para animar workflow |
+| Edge Function `news-agent` | Backend | Manter |
+| Edge Function `process-queue` | Backend | Manter |
+| Realtime em `articles` e `rewrite_queue` | usePipeline hook | Manter |
+| Logs detalhados com JSON | AgentPage | Mover para dentro do Pipeline |
 
-## Problema 2: Datas so aparecem no carrossel
+## O que muda
 
-Os cards de noticias no feed (variante `default`), na sidebar (`sidebar`) e no FeaturedArticle nao mostram ha quanto tempo foram publicados.
+### 1. Pipeline Page -- Adicionar barra de workflow animada no topo
 
----
-
-## Solucao
-
-### Parte 1: Barra de progresso real na RewritingColumn
-
-Substituir a logica simulada por progresso baseado no estado real da `rewrite_queue`:
-
-- **Sem `started_at`** (status `queued`): barra a 0%, texto "Na fila"
-- **Com `started_at` mas sem `completed_at`** (status `processing`): barra animada com efeito de preenchimento gradual baseado no tempo decorrido (estimativa de 60s), mostrando o titulo do artigo em processamento
-- **Com `completed_at`** (status `completed`): barra a 100%
-
-A barra persiste entre recarregamentos porque le o `started_at` real da base de dados.
-
-Remover o countdown falso. Manter apenas a indicacao de quantos artigos estao na fila.
-
-**Ficheiro: `src/admin/components/pipeline/RewritingColumn.tsx`**
-
-- Remover o `useState` de `progress`, `countdown`, `elapsedTime`, `isTriggering`
-- Remover os 3 `useEffect` que simulam progresso e countdown
-- Calcular o progresso real a partir do `processingItem.started_at` (estimativa: 0-100% em ~90 segundos, baseado no tempo medio de processamento da IA)
-- Mostrar o titulo do artigo em processamento acima da barra
-- Usar um `useEffect` com `setInterval` de 1s que calcula `Math.min(95, (elapsed / estimatedDuration) * 100)` -- nunca ultrapassa 95% ate o status mudar para `completed` via realtime
-- Quando o realtime detecta `completed`, a barra salta para 100% e depois limpa
+Acima do Kanban board, inserir uma faixa horizontal com os passos do agente, alimentada em tempo real pelos `agent_logs`:
 
 ```text
-+----------------------------------------------+
-|  A REFORMULAR AGORA                          |
-|  "Titulo do artigo em processamento..."      |
-|  [=============================-------] 72%  |
-|  Reformulando com IA... | 1:05 decorrido     |
-+----------------------------------------------+
++----------------------------------------------------------------------+
+|  [Executar Pipeline]              Estado: Activo | Ultima: Ha 3 min  |
++----------------------------------------------------------------------+
+|                                                                      |
+|  ( RSS )---->( Normalizar )---->( IA Reform. )---->( Validar )---->( Pendentes )
+|   [OK]         [OK]              [A processar]      [espera]       [espera]
+|                                                                      |
++----------------------------------------------------------------------+
+|                                                                      |
+|  [  INBOX  ] [ EM REFORMULACAO ] [  PENDENTES  ] [  PUBLICADAS  ]   |
+|  (kanban board actual, sem alteracoes)                               |
++----------------------------------------------------------------------+
 ```
 
-### Parte 2: Datas em todos os cards de noticias
+**Como funciona:**
+- Subscrever `agent_logs` via Supabase Realtime (ja existe no AgentPage -- mover logica)
+- Mapear cada `action` do log a um no do workflow:
+  - `agent_start` / `fetch_start` / `fetch_complete` -> No "RSS Fetch"
+  - `parse_rss` / `duplicate_check` -> No "Normalizar"
+  - `ai_auto_rewrite` / `ai_auto_complete` -> No "IA Reformulacao"
+  - `article_save` -> No "Validar"
+  - `source_complete` / `agent_complete` -> No "Pendentes"
+- Cada no mostra estado: `idle` (cinza), `running` (azul pulsante), `success` (verde), `error` (vermelho)
+- Framer Motion para transicoes suaves entre estados
 
-**Ficheiro: `src/components/news/NewsCard.tsx`**
+**Ficheiro: `src/admin/components/pipeline/WorkflowStrip.tsx`** (novo componente)
 
-Adicionar tempo relativo + data em todas as variantes:
+- Componente simples: uma linha horizontal de 5 circulos/cards conectados por linhas
+- Recebe `latestLogs` como prop (ultimos logs do agente) e determina o estado de cada no
+- Inclui botao "Executar Pipeline" que invoca `news-agent` (mover do AgentPage)
+- Mostra ultima execucao e estado do agente (mover do AgentPage)
 
-- **Variante `default`**: Adicionar `{timeAgo} · {formattedDate}` na zona de categoria/tempo (linha 169-183), junto ao badge de categoria
-- **Variante `sidebar`**: Adicionar `{timeAgo}` abaixo do badge de categoria
-- **Variante `compact`**: Ja tem `timeAgo` -- adicionar a data formatada ao lado
+### 2. Pipeline Page -- Integrar logs resumidos
 
-Formato: "Ha 2h · 11 Fev 2026" ou "Agora · 11 Fev 2026"
+Abaixo do workflow strip (ou em collapsible), mostrar os ultimos 10-15 logs do agente em formato compacto (uma linha por log, sem JSON expandido). Quem quiser detalhes vai ao AgentPage.
 
-**Ficheiro: `src/components/news/FeaturedArticle.tsx`**
+**Ficheiro: `src/admin/components/pipeline/WorkflowLogs.tsx`** (novo componente)
 
-Adicionar tempo relativo + data abaixo do titulo, antes do summary.
+- Collapsible: "Logs do agente (12)" -- expande para mostrar logs recentes
+- Formato: `[HH:MM:SS] [accao] mensagem...`
+- Realtime: novos logs aparecem com animacao fade-in
+- Reutiliza a subscricao de `agent_logs` do WorkflowStrip
 
----
+### 3. AgentPage -- Simplificar (apenas logs completos)
+
+Remover os controlos duplicados (agente activo, frequencia) que ja existem em Settings. Manter apenas:
+- Titulo "Logs do Agente IA"
+- Estatisticas 24h (ja existem)
+- Lista completa de logs com JSON expandivel (ja existe)
+- Link para Settings: "Configurar agente"
+
+### 4. Pipeline Page -- Hook de workflow
+
+**Ficheiro: `src/admin/hooks/useWorkflowStatus.ts`** (novo hook)
+
+- Busca os ultimos logs via `useQuery` (nao precisa de nova tabela)
+- Subscreve `agent_logs` via Realtime para updates instantaneos
+- Calcula o estado de cada no do workflow a partir dos logs
+- Expoe: `nodeStatuses`, `isAgentRunning`, `lastExecution`, `recentLogs`, `runAgent()`
+
+### 5. PipelinePage -- Integrar tudo
+
+**Ficheiro: `src/admin/pages/PipelinePage.tsx`** (modificar)
+
+- Importar `WorkflowStrip` e `WorkflowLogs`
+- Colocar acima do `PipelineBoard`
+- Remover o botao "Reiniciar Pipeline" do header (mover para dentro do workflow strip como accao secundaria)
+
+## Ficheiros a Criar
+
+| Ficheiro | Descricao |
+|----------|-----------|
+| `src/admin/components/pipeline/WorkflowStrip.tsx` | Barra visual de 5 nos com estado animado |
+| `src/admin/components/pipeline/WorkflowLogs.tsx` | Lista compacta de logs recentes (collapsible) |
+| `src/admin/hooks/useWorkflowStatus.ts` | Hook que le `agent_logs` com realtime e calcula estados |
 
 ## Ficheiros a Modificar
 
 | Ficheiro | Alteracao |
 |----------|-----------|
-| `src/admin/components/pipeline/RewritingColumn.tsx` | Remover logica simulada, calcular progresso real a partir de `started_at`, mostrar titulo do artigo |
-| `src/components/news/NewsCard.tsx` | Adicionar `timeAgo + data` nas variantes `default` e `sidebar` |
-| `src/components/news/FeaturedArticle.tsx` | Adicionar `timeAgo + data` abaixo do titulo |
+| `src/admin/pages/PipelinePage.tsx` | Adicionar WorkflowStrip + WorkflowLogs acima do PipelineBoard |
+| `src/admin/pages/AgentPage.tsx` | Remover controlos duplicados, manter apenas logs completos |
 
----
+## Zero tabelas novas, Zero edge functions novas
+
+Tudo funciona com a infraestrutura existente:
+- `agent_logs` -> alimenta o workflow visual
+- `agent_settings` -> configuracoes (em Settings)
+- `rewrite_queue` -> alimenta a coluna "Em Reformulacao" (ja funciona)
+- `news-agent` -> execucao do pipeline (ja funciona)
+- `process-queue` -> reformulacao (ja funciona)
 
 ## Seccao Tecnica
 
-### RewritingColumn - Progresso real
+### useWorkflowStatus -- Mapear logs a nos
 
 ```typescript
-// Calcular progresso baseado no tempo real decorrido
-const ESTIMATED_DURATION_SECONDS = 90; // Estimativa de 90s para reformulacao
+type NodeStatus = 'idle' | 'running' | 'success' | 'error';
 
-const [realProgress, setRealProgress] = useState(0);
+const WORKFLOW_NODES = [
+  { id: 'fetch', label: 'RSS Fetch', icon: Rss, actions: ['agent_start', 'fetch_start', 'fetch_complete'] },
+  { id: 'normalize', label: 'Normalizar', icon: Filter, actions: ['parse_rss', 'duplicate_check'] },
+  { id: 'rewrite', label: 'IA Reformulação', icon: Bot, actions: ['ai_auto_rewrite', 'ai_auto_complete', 'ai_auto_error'] },
+  { id: 'validate', label: 'Validar', icon: CheckCircle, actions: ['article_save'] },
+  { id: 'complete', label: 'Concluído', icon: Flag, actions: ['source_complete', 'agent_complete'] },
+];
 
-useEffect(() => {
-  if (!processingItem?.started_at) {
-    setRealProgress(0);
-    return;
-  }
-  
-  const updateProgress = () => {
-    const startTime = new Date(processingItem.started_at!).getTime();
-    const elapsed = (Date.now() - startTime) / 1000;
-    const pct = Math.min(95, (elapsed / ESTIMATED_DURATION_SECONDS) * 100);
-    setRealProgress(pct);
-  };
-  
-  updateProgress();
-  const interval = setInterval(updateProgress, 1000);
-  return () => clearInterval(interval);
-}, [processingItem?.started_at]);
-
-// Quando o status muda para completed (via realtime), saltar para 100%
-useEffect(() => {
-  if (!processingItem) {
-    // Se nao ha item em processing, e porque completou
-    setRealProgress(prev => prev > 0 ? 100 : 0);
-  }
-}, [processingItem]);
+// Determinar estado de cada no baseado nos logs da ultima execucao:
+// 1. Encontrar o ultimo 'agent_start' nos logs
+// 2. Filtrar logs desde esse ponto
+// 3. Para cada no, verificar se tem logs com status 'error', 'success' ou 'info'(running)
 ```
 
-### NewsCard - Tempo relativo + data em todas as variantes
+### WorkflowStrip -- Animacao Framer Motion
 
 ```typescript
-const formattedDate = new Date(article.publishedAt).toLocaleDateString('pt-MZ', {
-  day: 'numeric', month: 'short', year: 'numeric'
-});
+// No activo pulsa
+<motion.div
+  animate={status === 'running' ? { 
+    scale: [1, 1.05, 1],
+    boxShadow: ['0 0 0 0 rgba(var(--primary), 0)', '0 0 0 8px rgba(var(--primary), 0.2)', '0 0 0 0 rgba(var(--primary), 0)']
+  } : {}}
+  transition={{ repeat: Infinity, duration: 1.5 }}
+/>
 
-// Na variante default, junto ao badge de categoria:
-<span className="text-xs text-muted-foreground">
-  {timeAgo} · {formattedDate}
-</span>
-
-// Na variante sidebar, abaixo do badge:
-<span className="text-[10px] text-muted-foreground mt-1">
-  {timeAgo} · {formattedDate}
-</span>
+// Linha de conexao entre nos
+<div className={cn(
+  'h-0.5 flex-1 transition-colors duration-500',
+  leftNodeDone ? 'bg-green-500' : 'bg-muted'
+)} />
 ```
 
-### FeaturedArticle - Tempo relativo
+### Executar Pipeline (botao no WorkflowStrip)
 
 ```typescript
-// Abaixo do titulo:
-<p className="text-xs text-muted-foreground">
-  {getTimeAgo(article.published_at)} · {new Date(article.published_at).toLocaleDateString('pt-MZ', { day: 'numeric', month: 'short', year: 'numeric' })}
-</p>
+const runAgent = async () => {
+  setIsRunning(true);
+  const { data, error } = await supabase.functions.invoke('news-agent');
+  if (error) toast.error('Erro ao executar agente');
+  else toast.success(`${data.articles_saved} artigos processados`);
+  setIsRunning(false);
+};
 ```
-
