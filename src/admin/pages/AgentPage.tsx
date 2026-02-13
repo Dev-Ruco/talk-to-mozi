@@ -1,22 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
-import { Bot, Play, RefreshCw, AlertCircle, CheckCircle, ChevronDown, ChevronRight, Info } from 'lucide-react';
-import { toast } from 'sonner';
+import { Bot, RefreshCw, AlertCircle, CheckCircle, ChevronDown, ChevronRight, Info, Settings } from 'lucide-react';
 import { AdminLayout } from '../components/layout/AdminLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Collapsible,
   CollapsibleContent,
@@ -24,21 +14,7 @@ import {
 } from '@/components/ui/collapsible';
 import { supabase } from '@/integrations/supabase/client';
 import { AgentLog } from '../types/admin';
-
-// Action labels in Portuguese
-const ACTION_LABELS: Record<string, string> = {
-  agent_start: 'Agente Iniciado',
-  fetch_start: 'A Obter Fonte',
-  fetch_complete: 'Fetch Concluído',
-  parse_rss: 'A Analisar RSS',
-  duplicate_check: 'Verificação de Duplicados',
-  article_save: 'Artigo Guardado',
-  source_complete: 'Fonte Concluída',
-  agent_complete: 'Agente Concluído',
-  ai_rewrite: 'IA a Reformular',
-  ai_complete: 'Reformulação Concluída',
-  fetch_rss: 'Fetch RSS',
-};
+import { useNavigate } from 'react-router-dom';
 
 // Status icons
 function StatusIcon({ status }: { status: string | null }) {
@@ -54,7 +30,24 @@ function StatusIcon({ status }: { status: string | null }) {
   }
 }
 
-// Log item component
+// Action labels
+const ACTION_LABELS: Record<string, string> = {
+  agent_start: 'Agente Iniciado',
+  fetch_start: 'A Obter Fonte',
+  fetch_complete: 'Fetch Concluído',
+  parse_rss: 'A Analisar RSS',
+  duplicate_check: 'Verificação de Duplicados',
+  article_save: 'Artigo Guardado',
+  source_complete: 'Fonte Concluída',
+  agent_complete: 'Agente Concluído',
+  ai_rewrite: 'IA a Reformular',
+  ai_complete: 'Reformulação Concluída',
+  ai_auto_rewrite: 'IA Auto-Reformular',
+  ai_auto_complete: 'Auto-Reformulação OK',
+  ai_auto_error: 'Erro Reformulação',
+  fetch_rss: 'Fetch RSS',
+};
+
 function LogItem({ log }: { log: AgentLog }) {
   const [isOpen, setIsOpen] = useState(false);
   const hasDetails = log.details && Object.keys(log.details).length > 0;
@@ -110,93 +103,50 @@ function LogItem({ log }: { log: AgentLog }) {
 }
 
 export default function AgentPage() {
-  const [isActive, setIsActive] = useState(true);
-  const [frequency, setFrequency] = useState('5');
+  const navigate = useNavigate();
   const [logs, setLogs] = useState<AgentLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRunning, setIsRunning] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchLogs();
     
-    // Subscribe to realtime updates
     const channel = supabase
       .channel('agent_logs_realtime')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'agent_logs' },
         async (payload) => {
-          console.log('New log received:', payload);
-          // Fetch the full log with source relation
           const { data: newLog } = await supabase
             .from('agent_logs')
-            .select(`
-              *,
-              source:sources(name)
-            `)
+            .select('*, source:sources(name)')
             .eq('id', payload.new.id)
             .single();
           
           if (newLog) {
             setLogs(prev => [newLog as unknown as AgentLog, ...prev.slice(0, 99)]);
-            
-            // Auto-scroll to top when new logs arrive
-            if (scrollRef.current) {
-              scrollRef.current.scrollTop = 0;
-            }
+            if (scrollRef.current) scrollRef.current.scrollTop = 0;
           }
         }
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   const fetchLogs = async () => {
     setIsLoading(true);
     const { data, error } = await supabase
       .from('agent_logs')
-      .select(`
-        *,
-        source:sources(name)
-      `)
+      .select('*, source:sources(name)')
       .order('executed_at', { ascending: false })
       .limit(100);
 
-    if (error) {
-      console.error('Error fetching logs:', error);
-    } else {
-      setLogs((data || []) as unknown as AgentLog[]);
-    }
+    if (!error) setLogs((data || []) as unknown as AgentLog[]);
     setIsLoading(false);
   };
 
-  const handleRunNow = async () => {
-    setIsRunning(true);
-    toast.info('A executar agente...');
-    try {
-      const { data, error } = await supabase.functions.invoke('news-agent');
-      
-      if (error) {
-        toast.error('Erro ao executar agente: ' + error.message);
-      } else {
-        toast.success(
-          `Agente executado: ${data.articles_found} encontradas, ${data.articles_saved} guardadas` +
-          (data.duplicates_skipped ? ` (${data.duplicates_skipped} duplicados ignorados)` : '')
-        );
-      }
-    } catch (err) {
-      toast.error('Erro de comunicação com o agente');
-      console.error(err);
-    } finally {
-      setIsRunning(false);
-    }
-  };
-
-  // Calculate stats from logs
+  // Stats from logs
   const recentLogs = logs.filter(log => 
     new Date(log.executed_at).getTime() > Date.now() - 24 * 60 * 60 * 1000
   );
@@ -206,112 +156,54 @@ export default function AgentPage() {
   const errorCount = recentLogs.filter(log => log.status === 'error').length;
 
   return (
-    <AdminLayout title="Agente IA">
+    <AdminLayout title="Logs do Agente IA">
       <div className="space-y-6">
-        {/* Status Card */}
-        <div className="grid gap-4 md:grid-cols-2">
+        {/* Header with link to settings */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">Histórico Completo de Logs</h2>
+            <p className="text-sm text-muted-foreground">Acompanhe cada etapa da execução do agente</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => navigate('/admin/settings')} className="gap-2">
+            <Settings className="h-4 w-4" />
+            Configurar agente
+          </Button>
+        </div>
+
+        {/* 24h Stats */}
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bot className="h-5 w-5 text-primary" />
-                Estado do Agente
-              </CardTitle>
-              <CardDescription>
-                Controle o agente de recolha automática de notícias
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="agent-active">Agente activo</Label>
-                </div>
-                <Switch
-                  id="agent-active"
-                  checked={isActive}
-                  onCheckedChange={setIsActive}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <Label>Frequência</Label>
-                <Select value={frequency} onValueChange={setFrequency}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">1 minuto</SelectItem>
-                    <SelectItem value="5">5 minutos</SelectItem>
-                    <SelectItem value="15">15 minutos</SelectItem>
-                    <SelectItem value="30">30 minutos</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Estado</span>
-                <Badge variant={isRunning ? 'default' : isActive ? 'secondary' : 'outline'}>
-                  {isRunning ? (
-                    <>
-                      <span className="mr-1.5 h-2 w-2 rounded-full bg-yellow-400 animate-pulse" />
-                      A Executar...
-                    </>
-                  ) : isActive ? (
-                    <>
-                      <span className="mr-1.5 h-2 w-2 rounded-full bg-green-400" />
-                      Activo
-                    </>
-                  ) : (
-                    <>
-                      <span className="mr-1.5 h-2 w-2 rounded-full bg-gray-400" />
-                      Pausado
-                    </>
-                  )}
-                </Badge>
-              </div>
-
-              <Button onClick={handleRunNow} className="w-full" disabled={isRunning}>
-                <Play className="mr-2 h-4 w-4" />
-                {isRunning ? 'A executar...' : 'Executar agora'}
-              </Button>
+            <CardContent className="p-4 text-center">
+              <p className="text-2xl font-bold">{completeLogs.length}</p>
+              <p className="text-xs text-muted-foreground">Execuções (24h)</p>
             </CardContent>
           </Card>
-
           <Card>
-            <CardHeader>
-              <CardTitle>Estatísticas (24h)</CardTitle>
-              <CardDescription>
-                Resumo das últimas 24 horas
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Execuções</span>
-                <span className="font-semibold">{completeLogs.length}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Notícias encontradas</span>
-                <span className="font-semibold">{totalFound}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Notícias guardadas</span>
-                <span className="font-semibold">{totalSaved}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Erros</span>
-                <span className="font-semibold text-red-500">{errorCount}</span>
-              </div>
+            <CardContent className="p-4 text-center">
+              <p className="text-2xl font-bold">{totalFound}</p>
+              <p className="text-xs text-muted-foreground">Encontradas</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <p className="text-2xl font-bold">{totalSaved}</p>
+              <p className="text-xs text-muted-foreground">Guardadas</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <p className="text-2xl font-bold text-red-500">{errorCount}</p>
+              <p className="text-xs text-muted-foreground">Erros</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Realtime Logs */}
+        {/* Full Logs */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle>Logs em Tempo Real</CardTitle>
-              <CardDescription>
-                Acompanhe cada etapa da execução do agente
-              </CardDescription>
+              <CardDescription>Todos os logs com detalhes expandíveis</CardDescription>
             </div>
             <Button variant="outline" size="sm" onClick={fetchLogs} disabled={isLoading}>
               <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -326,7 +218,7 @@ export default function AgentPage() {
                 ))}
                 {logs.length === 0 && !isLoading && (
                   <p className="text-center text-muted-foreground py-8">
-                    Nenhum log disponível. Execute o agente para ver os logs aqui.
+                    Nenhum log disponível.
                   </p>
                 )}
               </div>
