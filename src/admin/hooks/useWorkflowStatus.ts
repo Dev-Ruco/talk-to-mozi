@@ -21,23 +21,38 @@ const NODE_DEFINITIONS = [
   { id: 'complete', label: 'Concluído', actions: ['source_complete', 'agent_complete'] },
 ];
 
-function computeNodeStatuses(logs: AgentLog[]): WorkflowNode[] {
-  // Find last agent_start
+function computeNodeStatuses(logs: AgentLog[]): { nodes: WorkflowNode[]; agentRunning: boolean } {
+  // Logs are ordered DESC (newest first)
   const startIdx = logs.findIndex(l => l.action === 'agent_start');
-  const currentRunLogs = startIdx >= 0 ? logs.slice(0, startIdx + 1) : [];
+  const completeIdx = logs.findIndex(l => l.action === 'agent_complete');
 
-  return NODE_DEFINITIONS.map(def => {
+  // Agent is running only if agent_start exists and no agent_complete is more recent
+  const agentRunning = startIdx >= 0 && (completeIdx < 0 || completeIdx > startIdx);
+
+  // If agent is NOT running, all nodes idle
+  if (!agentRunning) {
+    return {
+      agentRunning: false,
+      nodes: NODE_DEFINITIONS.map(def => ({ ...def, status: 'idle' as NodeStatus })),
+    };
+  }
+
+  // Agent IS running — use logs from newest down to (and including) agent_start
+  const currentRunLogs = logs.slice(0, startIdx + 1);
+
+  const nodes = NODE_DEFINITIONS.map(def => {
     const nodeLogs = currentRunLogs.filter(l => def.actions.includes(l.action || ''));
     let status: NodeStatus = 'idle';
 
     if (nodeLogs.length > 0) {
       const hasError = nodeLogs.some(l => l.status === 'error');
-      const hasRunning = nodeLogs.some(l => l.status === 'info');
+      // Most recent log for this node determines running vs success
+      const mostRecent = nodeLogs[0];
       if (hasError) status = 'error';
-      else if (hasRunning) status = 'running';
-      else status = 'success';
-    } else if (startIdx >= 0) {
-      // Check if a later node is already active — if so, this one succeeded
+      else if (mostRecent.status === 'success') status = 'success';
+      else status = 'running';
+    } else {
+      // If a later node is already active, this one implicitly succeeded
       const nodeIdx = NODE_DEFINITIONS.indexOf(def);
       const laterActive = NODE_DEFINITIONS.slice(nodeIdx + 1).some(laterDef =>
         currentRunLogs.some(l => laterDef.actions.includes(l.action || ''))
@@ -47,6 +62,8 @@ function computeNodeStatuses(logs: AgentLog[]): WorkflowNode[] {
 
     return { ...def, status };
   });
+
+  return { nodes, agentRunning: true };
 }
 
 export function useWorkflowStatus() {
@@ -83,9 +100,7 @@ export function useWorkflowStatus() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  const nodeStatuses = computeNodeStatuses(logs);
-
-  const isAgentRunning = nodeStatuses.some(n => n.status === 'running');
+  const { nodes: nodeStatuses, agentRunning: isAgentActive } = computeNodeStatuses(logs);
 
   const lastExecution = logs.find(l => l.action === 'agent_complete' || l.action === 'agent_start');
 
@@ -112,7 +127,7 @@ export function useWorkflowStatus() {
 
   return {
     nodeStatuses,
-    isAgentRunning: isAgentRunning || isRunning,
+    isAgentRunning: isAgentActive || isRunning,
     isManualRunning: isRunning,
     lastExecution,
     recentLogs,
