@@ -113,6 +113,7 @@ export type Database = {
           seo_slug: string | null
           seo_title: string | null
           source_id: string | null
+          source_name: string | null
           source_url: string | null
           status: Database["public"]["Enums"]["article_status"] | null
           tags: string[] | null
@@ -147,6 +148,7 @@ export type Database = {
           seo_slug?: string | null
           seo_title?: string | null
           source_id?: string | null
+          source_name?: string | null
           source_url?: string | null
           status?: Database["public"]["Enums"]["article_status"] | null
           tags?: string[] | null
@@ -181,6 +183,7 @@ export type Database = {
           seo_slug?: string | null
           seo_title?: string | null
           source_id?: string | null
+          source_name?: string | null
           source_url?: string | null
           status?: Database["public"]["Enums"]["article_status"] | null
           tags?: string[] | null
@@ -259,6 +262,54 @@ export type Database = {
         }
         Relationships: []
       }
+      pipeline_logs: {
+        Row: {
+          article_id: string | null
+          created_at: string | null
+          id: string
+          level: string | null
+          message: string | null
+          meta: Json | null
+          node: string
+          source_id: string | null
+        }
+        Insert: {
+          article_id?: string | null
+          created_at?: string | null
+          id?: string
+          level?: string | null
+          message?: string | null
+          meta?: Json | null
+          node: string
+          source_id?: string | null
+        }
+        Update: {
+          article_id?: string | null
+          created_at?: string | null
+          id?: string
+          level?: string | null
+          message?: string | null
+          meta?: Json | null
+          node?: string
+          source_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_logs_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pipeline_logs_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rewrite_queue: {
         Row: {
           article_id: string
@@ -307,43 +358,61 @@ export type Database = {
         Row: {
           articles_captured: number | null
           categories: string[] | null
+          country: string | null
           created_at: string | null
           credibility: Database["public"]["Enums"]["credibility_level"] | null
           duplicates_found: number | null
+          exclude_keywords: string[] | null
+          feed_url: string | null
           fetch_interval_minutes: number | null
           id: string
+          include_keywords: string[] | null
           is_active: boolean | null
+          language: string | null
           last_fetch_at: string | null
           name: string
           type: Database["public"]["Enums"]["source_type"] | null
+          updated_at: string | null
           url: string
         }
         Insert: {
           articles_captured?: number | null
           categories?: string[] | null
+          country?: string | null
           created_at?: string | null
           credibility?: Database["public"]["Enums"]["credibility_level"] | null
           duplicates_found?: number | null
+          exclude_keywords?: string[] | null
+          feed_url?: string | null
           fetch_interval_minutes?: number | null
           id?: string
+          include_keywords?: string[] | null
           is_active?: boolean | null
+          language?: string | null
           last_fetch_at?: string | null
           name: string
           type?: Database["public"]["Enums"]["source_type"] | null
+          updated_at?: string | null
           url: string
         }
         Update: {
           articles_captured?: number | null
           categories?: string[] | null
+          country?: string | null
           created_at?: string | null
           credibility?: Database["public"]["Enums"]["credibility_level"] | null
           duplicates_found?: number | null
+          exclude_keywords?: string[] | null
+          feed_url?: string | null
           fetch_interval_minutes?: number | null
           id?: string
+          include_keywords?: string[] | null
           is_active?: boolean | null
+          language?: string | null
           last_fetch_at?: string | null
           name?: string
           type?: Database["public"]["Enums"]["source_type"] | null
+          updated_at?: string | null
           url?: string
         }
         Relationships: []
