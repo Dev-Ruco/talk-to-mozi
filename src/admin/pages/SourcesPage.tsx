@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, TestTube, Download, RefreshCw, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, TestTube, Download, RefreshCw, Loader2, Bug } from 'lucide-react';
 import { toast } from 'sonner';
 import { AdminLayout } from '../components/layout/AdminLayout';
 import { Button } from '@/components/ui/button';
@@ -53,6 +53,11 @@ export default function SourcesPage() {
   // Fetch all state
   const [fetchingAll, setFetchingAll] = useState(false);
   const [fetchingSourceId, setFetchingSourceId] = useState<string | null>(null);
+
+  // Debug state
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [debugLoading, setDebugLoading] = useState(false);
+  const [debugResult, setDebugResult] = useState<any>(null);
 
   useEffect(() => { fetchSources(); }, []);
 
@@ -185,6 +190,59 @@ export default function SourcesPage() {
     }
   };
 
+  // ─── Debug rss-fetch ───
+  const handleDebug = async () => {
+    setDebugLoading(true);
+    setDebugResult(null);
+    setDebugOpen(true);
+
+    const EXTERNAL_URL = "https://cmxhvptjfezxjjrrlwgx.supabase.co/functions/v1/rss-fetch";
+    const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNteGh2cHRqZmV6eGpqcnJsd2d4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwNTc0OTgsImV4cCI6MjA4NjYzMzQ5OH0.BSJdJ5wQOdxPqgujdiysNxBgUezxr3VQULlfiajFJwA";
+
+    // Run both in parallel
+    const [sdkRes, fetchRes] = await Promise.allSettled([
+      supabase.functions.invoke('rss-fetch', { body: { dry_run: true } }),
+      fetch(EXTERNAL_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": ANON_KEY,
+          "Authorization": `Bearer ${ANON_KEY}`,
+        },
+        body: JSON.stringify({ dry_run: true }),
+      }).then(async (r) => {
+        let body: any = null;
+        try { body = await r.json(); } catch { body = await r.text().catch(() => null); }
+        return { status: r.status, statusText: r.statusText, body };
+      }),
+    ]);
+
+    const diagnose = (status: number | null) => {
+      if (!status) return "⚠️ Sem status — possível bloqueio CORS ou rede";
+      if (status === 200) return "✅ Function acessível e a responder";
+      if (status === 404) return "❌ 404 — Function não deployada ou nome errado em cmxhv…";
+      if (status === 401 || status === 403) return "❌ Auth — Key errada ou headers ausentes";
+      if (status === 400 || status === 415) return "⚠️ Body/headers malformados";
+      if (status >= 500) return "❌ 500 — Erro interno na Edge Function (ver logs no Supabase externo)";
+      return `⚠️ Status inesperado: ${status}`;
+    };
+
+    const sdk: any = sdkRes.status === 'fulfilled' ? sdkRes.value : { error: (sdkRes as any).reason?.message || 'Falhou' };
+    const direct: any = fetchRes.status === 'fulfilled' ? fetchRes.value : { status: null, statusText: 'CORS/Network error', body: (fetchRes as any).reason?.message || null };
+
+    setDebugResult({
+      url: EXTERNAL_URL,
+      sdk: { data: sdk.data || null, error: sdk.error?.message || sdk.error || null },
+      fetch: {
+        status: direct.status,
+        statusText: direct.statusText,
+        body: direct.body,
+        diagnosis: diagnose(direct.status),
+      },
+    });
+    setDebugLoading(false);
+  };
+
   return (
     <AdminLayout title="Fontes">
       <div className="space-y-4">
@@ -194,6 +252,9 @@ export default function SourcesPage() {
             Gerir fontes de notícias (RSS, websites, APIs).
           </p>
           <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleDebug} disabled={debugLoading}>
+              <Bug className="mr-2 h-4 w-4" /> Debug rss-fetch
+            </Button>
             <Button variant="outline" onClick={handleFetchAll} disabled={fetchingAll}>
               {fetchingAll ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
               Captar tudo
@@ -399,6 +460,48 @@ export default function SourcesPage() {
                   </div>
                 </div>
               ))}
+            </ScrollArea>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      {/* Debug Modal */}
+      <Dialog open={debugOpen} onOpenChange={setDebugOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>🔧 Debug rss-fetch</DialogTitle>
+          </DialogHeader>
+          {debugLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <span className="ml-3 text-muted-foreground">A testar conectividade...</span>
+            </div>
+          ) : debugResult ? (
+            <ScrollArea className="max-h-[60vh]">
+              <div className="space-y-4 text-sm">
+                <div>
+                  <p className="font-semibold">URL chamado:</p>
+                  <code className="block bg-muted p-2 rounded text-xs break-all">{debugResult.url}</code>
+                </div>
+
+                <div className="border rounded p-3 space-y-2">
+                  <p className="font-semibold">📡 Fetch directo</p>
+                  <p><span className="text-muted-foreground">Status:</span> {debugResult.fetch.status ?? 'N/A'} {debugResult.fetch.statusText}</p>
+                  <p className="font-medium">{debugResult.fetch.diagnosis}</p>
+                  {debugResult.fetch.body && (
+                    <pre className="bg-muted p-2 rounded text-xs overflow-auto max-h-40">{typeof debugResult.fetch.body === 'string' ? debugResult.fetch.body : JSON.stringify(debugResult.fetch.body, null, 2)}</pre>
+                  )}
+                </div>
+
+                <div className="border rounded p-3 space-y-2">
+                  <p className="font-semibold">🔌 SDK invoke</p>
+                  {debugResult.sdk.error ? (
+                    <p className="text-destructive">Erro: {typeof debugResult.sdk.error === 'string' ? debugResult.sdk.error : JSON.stringify(debugResult.sdk.error)}</p>
+                  ) : (
+                    <pre className="bg-muted p-2 rounded text-xs overflow-auto max-h-40">{JSON.stringify(debugResult.sdk.data, null, 2)}</pre>
+                  )}
+                </div>
+              </div>
             </ScrollArea>
           ) : null}
         </DialogContent>
