@@ -18,7 +18,6 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
-import { invokeEdgeFunction } from '@/lib/edgeFunctions';
 import { Source, CREDIBILITY_LABELS, SOURCE_TYPE_LABELS } from '../types/admin';
 import { TagsInput } from '../components/ui/TagsInput';
 import { format } from 'date-fns';
@@ -143,14 +142,16 @@ export default function SourcesPage() {
     setPreviewLoading(true);
     setPreviewData(null);
     setPreviewOpen(true);
-    const { data, error } = await invokeEdgeFunction('rss-fetch', {
-      source_id: source.id,
-      dry_run: true,
-      limit_items_per_source: 10,
+    const { data, error } = await supabase.functions.invoke('rss-fetch', {
+      body: {
+        source_id: source.id,
+        dry_run: true,
+        limit_items_per_source: 10,
+      },
     });
     setPreviewLoading(false);
     if (error) {
-      toast.error(`Erro ao testar: ${error}`);
+      toast.error(`Erro ao testar: ${error.message}`);
       setPreviewOpen(false);
     } else {
       setPreviewData(data);
@@ -160,10 +161,10 @@ export default function SourcesPage() {
   // ─── Fetch one source ───
   const handleFetchOne = async (source: Source) => {
     setFetchingSourceId(source.id);
-    const { data, error } = await invokeEdgeFunction('rss-fetch', { source_id: source.id });
+    const { data, error } = await supabase.functions.invoke('rss-fetch', { body: { source_id: source.id } });
     setFetchingSourceId(null);
     if (error) {
-      toast.error(`Erro: ${error}`);
+      toast.error(`Erro: ${error.message}`);
     } else {
       const r = data?.results?.[0];
       toast.success(`${source.name}: ${r?.inserted || 0} inseridos, ${r?.skipped_duplicates || 0} duplicados`);
@@ -174,10 +175,10 @@ export default function SourcesPage() {
   // ─── Fetch all ───
   const handleFetchAll = async () => {
     setFetchingAll(true);
-    const { data, error } = await invokeEdgeFunction('rss-fetch', {});
+    const { data, error } = await supabase.functions.invoke('rss-fetch', { body: {} });
     setFetchingAll(false);
     if (error) {
-      toast.error(`Erro: ${error}`);
+      toast.error(`Erro: ${error.message}`);
     } else {
       toast.success(`${data?.total_inserted || 0} artigos captados de ${data?.sources_processed || 0} fontes`);
       fetchSources();
