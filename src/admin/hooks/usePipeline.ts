@@ -1,33 +1,20 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Tables } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 
 export type ArticleStatus = Tables<'articles'>['status'];
-export type RewriteQueueItem = {
-  id: string;
-  article_id: string;
-  priority: number;
-  queued_at: string;
-  started_at: string | null;
-  completed_at: string | null;
-  error_message: string | null;
-  status: 'queued' | 'processing' | 'completed' | 'failed';
-  article?: Tables<'articles'>;
-};
 
 export interface PipelineArticle extends Tables<'articles'> {
   source?: Tables<'sources'> | null;
-  queueItem?: RewriteQueueItem;
 }
 
 export function usePipeline() {
   const queryClient = useQueryClient();
-  const [processingArticleId, setProcessingArticleId] = useState<string | null>(null);
 
   // Fetch all articles for the pipeline
-  const { data: articles = [], isLoading: isLoadingArticles, refetch: refetchArticles } = useQuery({
+  const { data: articles = [], isLoading, refetch: refetchArticles } = useQuery({
     queryKey: ['pipeline-articles'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -39,161 +26,27 @@ export function usePipeline() {
       if (error) throw error;
       return data as PipelineArticle[];
     },
-    staleTime: 60000, // 60 seconds - Realtime will handle updates
+    staleTime: 60000,
   });
 
-  // Fetch rewrite queue
-  const { data: queue = [], isLoading: isLoadingQueue, refetch: refetchQueue } = useQuery({
-    queryKey: ['rewrite-queue'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('rewrite_queue')
-        .select('*')
-        .in('status', ['queued', 'processing'])
-        .order('priority', { ascending: false })
-        .order('queued_at', { ascending: true });
-      
-      if (error) throw error;
-      return data as RewriteQueueItem[];
-    },
-    staleTime: 30000, // 30 seconds - Realtime will handle updates
-  });
-
-  // Stable refetch callbacks to avoid re-subscription
-  const refetchArticlesRef = useRef(refetchArticles);
-  const refetchQueueRef = useRef(refetchQueue);
-  
+  // Stable refetch callback
+  const refetchRef = useRef(refetchArticles);
   useEffect(() => {
-    refetchArticlesRef.current = refetchArticles;
-    refetchQueueRef.current = refetchQueue;
-  }, [refetchArticles, refetchQueue]);
+    refetchRef.current = refetchArticles;
+  }, [refetchArticles]);
 
-  // Set up realtime subscriptions - stable dependencies
+  // Realtime subscription for articles only
   useEffect(() => {
-    const articlesChannel = supabase
+    const channel = supabase
       .channel('pipeline_articles_realtime')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'articles' },
-        () => {
-          refetchArticlesRef.current();
-        }
+        () => { refetchRef.current(); }
       )
       .subscribe();
 
-    const queueChannel = supabase
-      .channel('rewrite_queue_realtime')
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'rewrite_queue' },
-        (payload) => {
-          refetchQueueRef.current();
-          if (payload.eventType === 'UPDATE') {
-            const record = payload.new as RewriteQueueItem;
-            if (record.status === 'processing') {
-              setProcessingArticleId(record.article_id);
-            } else if (record.status === 'completed' || record.status === 'failed') {
-              setProcessingArticleId(null);
-            }
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(articlesChannel);
-      supabase.removeChannel(queueChannel);
-    };
-  }, []); // No dependencies - use refs for stable callbacks
-
-  // Add to rewrite queue and trigger processing
-  const addToQueue = useMutation({
-    mutationFn: async ({ articleId, priority = 0 }: { articleId: string; priority?: number }) => {
-      // Check if already in queue
-      const { data: existing } = await supabase
-        .from('rewrite_queue')
-        .select('id')
-        .eq('article_id', articleId)
-        .in('status', ['queued', 'processing'])
-        .single();
-
-      if (existing) {
-        throw new Error('Artigo já está na fila de reformulação');
-      }
-
-      const { error } = await supabase
-        .from('rewrite_queue')
-        .insert({ article_id: articleId, priority });
-
-      if (error) throw error;
-
-      // Trigger queue processing
-      try {
-        await supabase.functions.invoke('process-queue');
-      } catch (e) {
-        console.log('Queue processing will be handled by next trigger');
-      }
-    },
-    onSuccess: () => {
-      toast.success('Artigo adicionado à fila de reformulação');
-      refetchQueue();
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
-  });
-
-  // Skip queue (set high priority)
-  const skipQueue = useMutation({
-    mutationFn: async (articleId: string) => {
-      // Get current max priority
-      const { data: maxPriorityItem } = await supabase
-        .from('rewrite_queue')
-        .select('priority')
-        .order('priority', { ascending: false })
-        .limit(1)
-        .single();
-
-      const newPriority = (maxPriorityItem?.priority || 0) + 10;
-
-      // Check if already in queue
-      const { data: existing } = await supabase
-        .from('rewrite_queue')
-        .select('id')
-        .eq('article_id', articleId)
-        .in('status', ['queued', 'processing'])
-        .single();
-
-      if (existing) {
-        // Update priority
-        const { error } = await supabase
-          .from('rewrite_queue')
-          .update({ priority: newPriority })
-          .eq('id', existing.id);
-        if (error) throw error;
-      } else {
-        // Insert with high priority
-        const { error } = await supabase
-          .from('rewrite_queue')
-          .insert({ article_id: articleId, priority: newPriority });
-        if (error) throw error;
-      }
-
-      // Trigger queue processing with skip flag
-      try {
-        await supabase.functions.invoke('process-queue', {
-          body: { article_id: articleId, skip_queue: true }
-        });
-      } catch (e) {
-        console.log('Queue processing will be handled by next trigger');
-      }
-    },
-    onSuccess: () => {
-      toast.success('Artigo movido para o topo da fila');
-      refetchQueue();
-    },
-    onError: () => {
-      toast.error('Erro ao furar a fila');
-    },
-  });
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   // Delete articles
   const deleteArticles = useMutation({
@@ -249,97 +102,9 @@ export function usePipeline() {
     },
   });
 
-  // Force rewrite - move to top of queue and trigger immediately
-  const forceRewrite = useMutation({
-    mutationFn: async (articleId: string) => {
-      // 1. Check if already in queue
-      const { data: existing } = await supabase
-        .from('rewrite_queue')
-        .select('id')
-        .eq('article_id', articleId)
-        .in('status', ['queued', 'processing'])
-        .single();
-
-      if (existing) {
-        // Update priority to very high
-        await supabase
-          .from('rewrite_queue')
-          .update({ priority: 9999 })
-          .eq('id', existing.id);
-      } else {
-        // Insert with high priority
-        const { error } = await supabase
-          .from('rewrite_queue')
-          .insert({ article_id: articleId, priority: 9999 });
-        if (error) throw error;
-      }
-
-      // 2. Check if something is processing
-      const { data: processing } = await supabase
-        .from('rewrite_queue')
-        .select('id')
-        .eq('status', 'processing')
-        .limit(1);
-
-      // 3. If nothing is processing, trigger immediately
-      if (!processing || processing.length === 0) {
-        await supabase.functions.invoke('process-queue', {
-          body: { article_id: articleId }
-        });
-      }
-      // If busy, article is at top and will be next
-    },
-    onSuccess: () => {
-      toast.success('Reformulação iniciada');
-      refetchQueue();
-    },
-    onError: () => {
-      toast.error('Erro ao forçar reformulação');
-    },
-  });
-
-  // Trigger process queue (for countdown trigger)
-  const triggerProcessQueue = useMutation({
-    mutationFn: async () => {
-      await supabase.functions.invoke('process-queue');
-    },
-    onError: (error) => {
-      console.log('Process queue trigger failed:', error);
-    },
-  });
-
-  // Auto-cleanup: delete non-published articles older than 12 hours (once per mount)
-  const cleanupDoneRef = useRef(false);
-  const cleanupOldArticles = useMutation({
-    mutationFn: async () => {
-      const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
-      const { error } = await supabase
-        .from('articles')
-        .delete()
-        .in('status', ['captured', 'rewritten', 'pending', 'approved', 'needs_image'])
-        .lt('captured_at', twelveHoursAgo);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      refetchArticles();
-    },
-  });
-
-  useEffect(() => {
-    if (!isLoadingArticles && !cleanupDoneRef.current) {
-      cleanupDoneRef.current = true;
-      cleanupOldArticles.mutate();
-    }
-  }, [isLoadingArticles]);
-
-  // Reset pipeline mutation
+  // Reset pipeline
   const resetPipeline = useMutation({
     mutationFn: async () => {
-      await supabase
-        .from('rewrite_queue')
-        .delete()
-        .in('status', ['queued', 'processing']);
-      
       const { error } = await supabase
         .from('articles')
         .delete()
@@ -349,14 +114,13 @@ export function usePipeline() {
     onSuccess: () => {
       toast.success('Pipeline reiniciado');
       refetchArticles();
-      refetchQueue();
     },
     onError: () => {
       toast.error('Erro ao reiniciar pipeline');
     },
   });
 
-  // Organize articles by column (with 12h filter for work columns)
+  // Organize articles by column
   const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
   const inboxArticles = articles.filter(a => a.status === 'captured' && (a.captured_at ?? '') > twelveHoursAgo);
   const pendingArticles = articles.filter(a => 
@@ -368,56 +132,20 @@ export function usePipeline() {
     .slice(0, 6);
   const scheduledArticles = articles.filter(a => a.status === 'scheduled');
 
-  // Get articles in queue
-  const queuedArticles = queue
-    .filter(q => q.status === 'queued')
-    .map(q => {
-      const article = articles.find(a => a.id === q.article_id);
-      return { ...q, article };
-    });
-
-  const processingItem = queue.find(q => q.status === 'processing');
-  const processingArticle = processingItem 
-    ? articles.find(a => a.id === processingItem.article_id)
-    : null;
-
   return {
-    // Data
     articles,
     inboxArticles,
     pendingArticles,
     publishedArticles,
     scheduledArticles,
-    queuedArticles,
-    processingArticle,
-    processingItem,
-    
-    // Loading states
-    isLoading: isLoadingArticles || isLoadingQueue,
-    
-    // Actions
-    addToQueue: addToQueue.mutate,
-    skipQueue: skipQueue.mutate,
+    isLoading,
     deleteArticles: deleteArticles.mutate,
     publishArticle: publishArticle.mutate,
     unpublishArticle: unpublishArticle.mutate,
-    forceRewrite: forceRewrite.mutate,
-    triggerProcessQueue: triggerProcessQueue.mutate,
-    
-    // Pending states
-    isAddingToQueue: addToQueue.isPending,
     isDeleting: deleteArticles.isPending,
     isPublishing: publishArticle.isPending,
-    isForceRewriting: forceRewrite.isPending,
-    
-    // Reset
     resetPipeline: resetPipeline.mutate,
     isResetting: resetPipeline.isPending,
-    
-    // Refetch
-    refetch: () => {
-      refetchArticles();
-      refetchQueue();
-    },
+    refetch: refetchArticles,
   };
 }

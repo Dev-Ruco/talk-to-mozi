@@ -10,15 +10,12 @@ import { useLatestArticles } from '@/hooks/usePublishedArticles';
 import { useTrendingSuggestions } from '@/hooks/useTrendingTopics';
 import { InlineChatCarousel } from '@/components/news/InlineChatCarousel';
 import { sponsoredAds } from '@/data/ads';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import type { Article } from '@/types/news';
 
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  relatedArticleIds?: string[];
 }
 
 export default function ChatPage() {
@@ -29,77 +26,25 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [relatedArticles, setRelatedArticles] = useState<Article[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Fetch latest articles from database
   const { data: latestArticles, isLoading: isLoadingLatest } = useLatestArticles(6);
-
-  // Fetch trending suggestions
   const { suggestions: trendingSuggestions, isLoading: isLoadingTrending } = useTrendingSuggestions();
 
-  // Get random ad for carousel
   const carouselAd = useMemo(() => 
     sponsoredAds[Math.floor(Math.random() * sponsoredAds.length)],
     []
-  );
-
-  // Count assistant messages for carousel insertion
-  const assistantMessageCount = useMemo(() => 
-    messages.filter(m => m.role === 'assistant').length,
-    [messages]
   );
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  useEffect(() => { scrollToBottom(); }, [messages]);
+  useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' }); }, []);
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // Scroll to top on initial page load
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'instant' });
+    if (initialQuery && messages.length === 0) handleSubmit(initialQuery);
   }, []);
-
-  // Handle initial query from URL
-  useEffect(() => {
-    if (initialQuery && messages.length === 0) {
-      handleSubmit(initialQuery);
-    }
-  }, []);
-
-  // Fetch articles by IDs
-  const fetchArticlesByIds = async (ids: string[]): Promise<Article[]> => {
-    if (!ids || ids.length === 0) return [];
-    
-    const { data, error } = await supabase
-      .from('articles')
-      .select('*')
-      .in('id', ids)
-      .eq('status', 'published');
-    
-    if (error) {
-      console.error('[ChatPage] Error fetching articles:', error);
-      return [];
-    }
-    
-    return (data || []).map(article => ({
-      id: article.id,
-      title: article.title || '',
-      summary: article.lead || '',
-      content: article.content || '',
-      category: (article.category || 'sociedade') as Article['category'],
-      imageUrl: article.image_url || '/placeholder.svg',
-      publishedAt: article.published_at || article.created_at || new Date().toISOString(),
-      readingTime: article.reading_time || 3,
-      author: article.author || 'Redacção B NEWS',
-      quickFacts: article.quick_facts || [],
-      relatedArticleIds: [],
-      tags: article.tags || [],
-    }));
-  };
 
   const handleSubmit = async (query?: string) => {
     const text = query || input.trim();
@@ -109,7 +54,6 @@ export default function ChatPage() {
     setIsLoading(true);
     setError(null);
 
-    // Add user message
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
@@ -117,47 +61,16 @@ export default function ChatPage() {
     };
     setMessages(prev => [...prev, userMessage]);
 
-    try {
-      // Call the chat Edge Function
-      const { data, error: fnError } = await supabase.functions.invoke('chat', {
-        body: {
-          question: text,
-          conversation_history: messages.map(m => ({ role: m.role, content: m.content }))
-        }
-      });
-
-      if (fnError) {
-        console.error('[ChatPage] Function error:', fnError);
-        throw new Error(fnError.message || 'Erro ao processar a pergunta');
-      }
-
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-
-      // Fetch related articles
-      const articles = await fetchArticlesByIds(data?.related_article_ids || []);
-      setRelatedArticles(articles);
-
+    // Chat temporarily disabled — pending new backend
+    setTimeout(() => {
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data?.response || 'Não consegui processar a sua pergunta.',
-        relatedArticleIds: data?.related_article_ids || [],
+        content: 'O chat está temporariamente indisponível. Estamos a migrar para um novo sistema.',
       };
-      
       setMessages(prev => [...prev, assistantMessage]);
-    } catch (err) {
-      console.error('[ChatPage] Error:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Erro ao processar a pergunta';
-      setError(errorMessage);
-      toast.error(errorMessage);
-      
-      // Remove user message on error
-      setMessages(prev => prev.filter(m => m.id !== userMessage.id));
-    } finally {
       setIsLoading(false);
-    }
+    }, 500);
   };
 
   const handleFormSubmit = (e: React.FormEvent) => {
@@ -165,18 +78,14 @@ export default function ChatPage() {
     handleSubmit();
   };
 
-  // Determine if we should show carousel after a message
   const shouldShowCarouselAfterIndex = (msgIndex: number): boolean => {
     let assistantCount = 0;
     for (let i = 0; i <= msgIndex; i++) {
-      if (messages[i]?.role === 'assistant') {
-        assistantCount++;
-      }
+      if (messages[i]?.role === 'assistant') assistantCount++;
     }
     return messages[msgIndex]?.role === 'assistant' && assistantCount > 0 && assistantCount % 2 === 0;
   };
 
-  // Use dynamic suggestions or fallback
   const displaySuggestions = trendingSuggestions.length > 0 
     ? trendingSuggestions 
     : [
@@ -189,7 +98,6 @@ export default function ChatPage() {
   return (
     <Layout showSidebars={false}>
       <div className="mx-auto max-w-3xl py-4 flex flex-col" style={{ minHeight: 'calc(100vh - 120px)' }}>
-        {/* Header */}
         <header className="mb-6 text-center flex-shrink-0">
           <h1 className="font-display text-2xl font-bold md:text-3xl">
             Pergunte algo sobre as notícias
@@ -199,9 +107,7 @@ export default function ChatPage() {
           </p>
         </header>
 
-        {/* Messages or suggestions - Scrollable area */}
         <div className="flex-1 overflow-y-auto mb-4">
-          {/* Error message */}
           {error && (
             <div className="mb-6 flex items-center gap-2 rounded-lg bg-destructive/10 p-4 text-destructive">
               <AlertCircle className="h-5 w-5 shrink-0" />
@@ -211,7 +117,6 @@ export default function ChatPage() {
 
           {messages.length === 0 ? (
             <div className="space-y-6">
-              {/* Suggestions */}
               <div>
                 <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Sugestões de pesquisa
@@ -239,7 +144,6 @@ export default function ChatPage() {
                 </div>
               </div>
 
-              {/* Latest articles */}
               <div>
                 <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Últimas notícias
@@ -253,11 +157,7 @@ export default function ChatPage() {
                     </>
                   ) : latestArticles && latestArticles.length > 0 ? (
                     latestArticles.slice(0, 4).map((article) => (
-                      <NewsCard
-                        key={article.id}
-                        article={article}
-                        variant="compact"
-                      />
+                      <NewsCard key={article.id} article={article} variant="compact" />
                     ))
                   ) : (
                     <p className="text-sm text-muted-foreground text-center py-4">
@@ -280,7 +180,6 @@ export default function ChatPage() {
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {/* AI response text */}
                         <div className="flex gap-3">
                           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
                             <Sparkles className="h-4 w-4 text-primary" />
@@ -290,7 +189,6 @@ export default function ChatPage() {
                           </div>
                         </div>
 
-                        {/* Input inline - RIGHT AFTER the response */}
                         {msgIndex === messages.length - 1 && !isLoading && (
                           <form onSubmit={handleFormSubmit} className="ml-11">
                             <div className="flex gap-2">
@@ -301,51 +199,22 @@ export default function ChatPage() {
                                 className="h-12 flex-1 text-base"
                                 disabled={isLoading}
                               />
-                              <Button
-                                type="submit"
-                                size="icon"
-                                className="h-12 w-12 shrink-0"
-                                disabled={isLoading || !input.trim()}
-                              >
+                              <Button type="submit" size="icon" className="h-12 w-12 shrink-0" disabled={isLoading || !input.trim()}>
                                 <Send className="h-5 w-5" />
                               </Button>
                             </div>
                           </form>
                         )}
-
-                        {/* Related articles - AFTER the input */}
-                        {msgIndex === messages.length - 1 && relatedArticles.length > 0 && (
-                          <div className="ml-11 mt-2 space-y-3">
-                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              Notícias relacionadas
-                            </p>
-                            <div className="flex flex-col gap-3">
-                              {relatedArticles.map((article) => (
-                                <NewsCard
-                                  key={article.id}
-                                  article={article}
-                                  variant="compact"
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
 
-                  {/* Inline carousel after every 2 assistant messages */}
                   {shouldShowCarouselAfterIndex(msgIndex) && latestArticles && latestArticles.length > 0 && (
-                    <InlineChatCarousel 
-                      articles={latestArticles.slice(0, 2)} 
-                      ads={[carouselAd]}
-                      className="ml-11"
-                    />
+                    <InlineChatCarousel articles={latestArticles.slice(0, 2)} ads={[carouselAd]} className="ml-11" />
                   )}
                 </div>
               ))}
 
-              {/* Loading state */}
               {isLoading && (
                 <div className="flex gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
@@ -365,7 +234,6 @@ export default function ChatPage() {
           )}
         </div>
 
-        {/* Chat input - Only show at bottom when no messages yet */}
         {messages.length === 0 && (
           <form onSubmit={handleFormSubmit} className="flex-shrink-0 sticky bottom-0 bg-background pt-2 pb-4">
             <div className="flex gap-2">
@@ -376,12 +244,7 @@ export default function ChatPage() {
                 className="h-14 flex-1 text-base"
                 disabled={isLoading}
               />
-              <Button
-                type="submit"
-                size="icon"
-                className="h-14 w-14 shrink-0"
-                disabled={isLoading || !input.trim()}
-              >
+              <Button type="submit" size="icon" className="h-14 w-14 shrink-0" disabled={isLoading || !input.trim()}>
                 <Send className="h-5 w-5" />
               </Button>
             </div>

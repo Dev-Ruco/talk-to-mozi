@@ -1,4 +1,4 @@
-import { Rss, Filter, Bot, CheckCircle, Flag, Play, Loader2, RotateCcw } from 'lucide-react';
+import { Rss, Filter, Bot, CheckCircle, Flag, RotateCcw, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 import { pt } from 'date-fns/locale';
@@ -35,7 +35,7 @@ interface WorkflowStripProps {
 }
 
 export function WorkflowStrip({ onReset, isResetting }: WorkflowStripProps) {
-  const { nodeStatuses, isAgentRunning, isManualRunning, lastExecution, runAgent } = useWorkflowStatus();
+  const { nodeStatuses, isAgentRunning, lastExecution } = useWorkflowStatus();
 
   const lastTime = lastExecution?.executed_at
     ? formatDistanceToNow(new Date(lastExecution.executed_at), { addSuffix: true, locale: pt })
@@ -46,15 +46,6 @@ export function WorkflowStrip({ onReset, isResetting }: WorkflowStripProps) {
       {/* Header row */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
-          <Button
-            size="sm"
-            onClick={runAgent}
-            disabled={isManualRunning}
-            className="gap-2"
-          >
-            {isManualRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-            Executar Pipeline
-          </Button>
           {onReset && (
             <Button
               variant="outline"
@@ -95,9 +86,7 @@ export function WorkflowStrip({ onReset, isResetting }: WorkflowStripProps) {
                 )} />
               )}
               <motion.div
-                animate={node.status === 'running' ? {
-                  scale: [1, 1.05, 1],
-                } : { scale: 1 }}
+                animate={node.status === 'running' ? { scale: [1, 1.05, 1] } : { scale: 1 }}
                 transition={node.status === 'running' ? { repeat: Infinity, duration: 1.5 } : {}}
                 className={cn(
                   'flex flex-col items-center gap-1.5 rounded-lg border-2 p-2.5 sm:p-3 min-w-[80px] sm:min-w-[100px] transition-colors duration-300',
