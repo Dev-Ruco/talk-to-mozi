@@ -18,15 +18,21 @@ export interface Source {
   id: string;
   name: string;
   url: string;
+  feed_url: string | null;
   type: SourceType;
   credibility: CredibilityLevel;
   categories: string[] | null;
+  include_keywords: string[] | null;
+  exclude_keywords: string[] | null;
+  country: string | null;
+  language: string | null;
   is_active: boolean;
   last_fetch_at: string | null;
   articles_captured: number;
   duplicates_found: number;
   fetch_interval_minutes: number;
   created_at: string;
+  updated_at: string | null;
 }
 
 export interface Article {
