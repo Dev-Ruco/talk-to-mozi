@@ -1,77 +1,83 @@
-# Corrigir edgeFunctions.ts para apontar ao Supabase externo
+# Diagnostico end-to-end da Edge Function rss-fetch
 
-## Problema
+## 1. Corrigir CORS na Edge Function
 
-O ficheiro `src/lib/edgeFunctions.ts` usa `import.meta.env.VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`, que apontam para o projecto Lovable Cloud (`kwwz...`). As Edge Functions (como `rss-fetch`) estao deployadas no Supabase externo (`cmxh...`), logo as chamadas falham.
+O ficheiro `supabase/functions/rss-fetch/index.ts` tem CORS incompleto. O SDK do Supabase envia headers adicionais que nao estao na whitelist actual.
 
-## Solucao
-
-Substituir as variaveis de ambiente pelos valores hardcoded do Supabase externo -- exactamente os mesmos valores que ja estao em `src/integrations/supabase/client.ts`:
-
-- URL: `https://cmxhvptjfezxjjrrlwgx.supabase.co`
-- Anon Key: a mesma key ja presente em `client.ts`
-
-## Ficheiro a modificar
-
-
-| Ficheiro                   | Alteracao                                                                                                                          |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `src/lib/edgeFunctions.ts` | Substituir `import.meta.env.VITE_SUPABASE_URL` e `import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY` pelos valores do Supabase externo |
-
-
-## Detalhe tecnico
-
-O helper passara a construir o URL como:
+**Actual (incompleto):**
 
 ```
-https://cmxhvptjfezxjjrrlwgx.supabase.co/functions/v1/{name}
+"Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
 ```
 
-E enviar o Authorization header com o anon key do projecto externo. Nenhum outro ficheiro precisa de ser alterado -- `SourcesPage.tsx` ja importa e usa `invokeEdgeFunction` correctamente.  
+**Correcto (com headers do SDK):**
+
+```
+"Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version"
+```
+
+
+| Ficheiro                                | Alteracao                                           |
+| --------------------------------------- | --------------------------------------------------- |
+| `supabase/functions/rss-fetch/index.ts` | Actualizar corsHeaders com headers completos do SDK |
+
+
+## 2. Adicionar botao de diagnostico em SourcesPage
+
+Adicionar um botao temporario "Debug rss-fetch" no topo da pagina `/admin/sources` que executa duas chamadas em paralelo:
+
+- **Via SDK**: `supabase.functions.invoke("rss-fetch", { body: { dry_run: true } })`
+- **Via fetch directo**: `fetch("https://cmxhvptjfezxjjrrlwgx.supabase.co/functions/v1/rss-fetch", ...)`
+
+O resultado aparece num modal com:
+
+- URL chamado
+- Status code (do fetch directo)
+- Resposta completa (JSON formatado)
+- Diagnostico automatico baseado no status:
+  - 404 = function nao deployada
+  - 401/403 = problema de autenticacao
+  - 400/415 = body ou headers errados
+  - 500 = erro interno na function
+  - 200 = tudo OK
+
+
+| Ficheiro                          | Alteracao                                              |
+| --------------------------------- | ------------------------------------------------------ |
+| `src/admin/pages/SourcesPage.tsx` | Adicionar botao "Debug rss-fetch" + modal de resultado |
+
+
+## 3. O que NAO muda
+
+- `client.ts` -- ja esta correcto, nao se toca
+- `.env` -- nao se usa para as chamadas (o client tem valores hardcoded)
+- Nenhum outro ficheiro e alterado
+
+## 4. Apos implementacao
+
+Depois de aprovado e implementado:
+
+1. Voce precisa de fazer deploy manual da function actualizada (com CORS corrigido) no projecto externo:
+  ```
+   supabase functions deploy rss-fetch --project-ref cmxhvptjfezxjjrrlwgx
+  ```
+2. Abrir `/admin/sources` e clicar "Debug rss-fetch"
+3. O modal mostrara exactamente o status, URL e resposta -- prova real da conectividade  
   
-  
-OBJECTIVO: Remover dependência do Lovable Cloud nas Edge Functions.
+Confirmar no Supabase externo que a function aparece em “Edge Functions” e está activa.
+4. Se der **500**, ver os logs da function no projecto externo (não no Lovable Cloud).
 
-1) Apagar completamente o ficheiro:
+## 5) Resultado esperado: quase certo, mas corrige esta frase
 
-   src/lib/edgeFunctions.ts
+> “Se CORS bloqueia: o fetch directo falha mas o diagnostico indica a causa”
 
-2) Procurar em todo o código por:
+## Resultado esperado
 
-   invokeEdgeFunction(
-
-   e substituir por:
-
-   supabase.functions.invoke(
-
-3) Garantir que todas as chamadas a:
-
-   - rss-fetch
-
-   - pipeline-run
-
-   - chat-article
-
-   - trending-topics
-
-   usam exclusivamente:
-
-   supabase.functions.invoke()
-
-4) Confirmar que:
-
-   - O client.ts usa [https://cmxhvptjfezxjjrrlwgx.supabase.co](https://cmxhvptjfezxjjrrlwgx.supabase.co)
-
-   - Nenhuma referência a kwwz permanece no src/
-
-5) Não usar VITE_SUPABASE_URL para construir URLs manualmente.
-
-   Apenas usar o client supabase já configurado.
-
-No final, mostrar:
-
-- Lista de ficheiros alterados
-
-- Confirmação de que não existe nenhuma referência a kwwz no src/
-
-&nbsp;
+- Se a function esta deployada em `cmxhv...`: modal mostra status 200 + dados JSON
+- Se nao esta deployada: modal mostra 404 com diagnostico claro
+- Se CORS bloqueia: o fetch directo falha mas o diagnostico indica a causa  
+Recomendações finais (curtas)
+  1. **CORS**: ou amplia a whitelist (como no plano) ou usa “echo” do `Access-Control-Request-Headers` no OPTIONS (mais robusto).
+  2. **Debug modal**: inclui caso “sem status” e mostra `error.message` → é aí que apanhas CORS.
+  3. **Deploy**: garante que estás a ver o projecto `cmxhv…` e não `kwwz…` quando checas logs.
+  Se quiseres, posso reescrever este plano numa versão “pronta para colar no Lovable” com as melhorias acima, mantendo a mesma estrutura.
