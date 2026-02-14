@@ -1,60 +1,175 @@
 
+# Limpar Arquitectura Antiga -- Remover Dependencias do Lovable Cloud
 
-# Corrigir Workflow: Animacao Apenas Quando Agente Activo
+## Resumo
 
-## Problema
+Remover toda a logica de backend antiga (queue management, Edge Function invocations, auto-rewrite) do frontend, mantendo apenas o CRUD de artigos e a leitura de logs. A UI nao e alterada estruturalmente -- apenas se removem as accoes que dependiam das Edge Functions antigas.
 
-O workflow mostra estados coloridos (verde "OK", roxo "A processar", vermelho "Erro") mesmo quando o agente ja terminou. Isto acontece porque a funcao `computeNodeStatuses` trata logs com `status: 'info'` como "running" sem verificar se o agente ja concluiu (`agent_complete`).
+## Inventario Completo de Dependencias a Remover
 
-Dados reais da base de dados confirmam: o ultimo `agent_start` foi as 09:10:02 e o `agent_complete` as 09:10:23 — o agente esta PARADO, mas o workflow mostra nos activos.
+### Edge Function calls (`supabase.functions.invoke`)
 
-## Solucao
+| Ficheiro | Funcao | Accao |
+|---|---|---|
+| `src/admin/hooks/useWorkflowStatus.ts` L113 | `news-agent` | Remover `runAgent` e toda a logica de execucao manual |
+| `src/admin/hooks/usePipeline.ts` L130, L182, L286, L304 | `process-queue` (4x) | Remover `addToQueue`, `skipQueue`, `forceRewrite`, `triggerProcessQueue` |
+| `src/admin/components/editor/ContentPanel.tsx` L38 | `rewrite-article` | Remover `handleAIAction` e toolbar de IA |
+| `src/components/news/ArticleChat.tsx` L61, L106 | `chat` (2x) | Remover chamadas de chat (sugestoes + perguntas) |
+| `src/pages/ChatPage.tsx` L122 | `chat` | Remover chamada de chat |
+| `src/hooks/useTrendingTopics.ts` L17 | `trending-topics` | Remover invocacao |
 
-### Logica corrigida em `useWorkflowStatus.ts`
+### Logica de `rewrite_queue` a remover
 
-A funcao `computeNodeStatuses` passa a verificar se existe um `agent_complete` DEPOIS do ultimo `agent_start`. Se sim, o agente terminou e todos os nos ficam `idle` (neutro/cinza).
+| Ficheiro | O que remover |
+|---|---|
+| `src/admin/hooks/usePipeline.ts` | Query de `rewrite_queue`, realtime subscription de `rewrite_queue`, mutations: `addToQueue`, `skipQueue`, `forceRewrite`, `triggerProcessQueue`, `resetPipeline` (parte que limpa queue), tipos `RewriteQueueItem` |
+| `src/admin/components/pipeline/PipelineBoard.tsx` | Props e uso de `addToQueue`, `skipQueue`, `forceRewrite`, `triggerProcessQueue`, `queuedArticles`, `processingArticle`, `processingItem`. Componente `RewritingColumn` |
+| `src/admin/components/pipeline/RewritingColumn.tsx` | Ficheiro inteiro pode ser esvaziado das accoes de queue (props `onSkipQueue`, `onForceRewrite`, `onTriggerProcessQueue`) |
+| `src/admin/components/pipeline/PipelineCard.tsx` | Props `onSkipQueue`, `onForceRewrite`, `onRewrite` |
 
-```text
-Agente PARADO (agent_complete existe apos agent_start):
-  ( RSS )----( Normalizar )----( IA Reform. )----( Validar )----( Concluido )
-  [Espera]     [Espera]          [Espera]         [Espera]       [Espera]
-  (tudo cinza, sem animacao)
+### Lovable AI Gateway references (nas Edge Functions)
 
-Agente A TRABALHAR (agent_start sem agent_complete):
-  ( RSS )----( Normalizar )----( IA Reform. )----( Validar )----( Concluido )
-   [OK]         [OK]           [A processar]      [Espera]       [Espera]
-  (verde)     (verde)          (azul pulsante)    (cinza)        (cinza)
-```
+| Ficheiro | Referencia |
+|---|---|
+| `supabase/functions/news-agent/index.ts` | `ai.gateway.lovable.dev` |
+| `supabase/functions/process-queue/index.ts` | `ai.gateway.lovable.dev` |
+| `supabase/functions/rewrite-article/index.ts` | `ai.gateway.lovable.dev` |
+| `supabase/functions/chat/index.ts` | `ai.gateway.lovable.dev` (2x) |
 
-### Alteracoes concretas
+Estas Edge Functions estao deployadas no Lovable Cloud e nao no Supabase externo. Nao as podemos apagar (o deploy e automatico), mas podemos remover os ficheiros do codigo para que deixem de ser re-deployadas.
 
-**Ficheiro: `src/admin/hooks/useWorkflowStatus.ts`**
+## Plano de Execucao
 
-Modificar `computeNodeStatuses`:
+### 1. `src/admin/hooks/usePipeline.ts` -- Simplificar drasticamente
 
-1. Encontrar o indice do ultimo `agent_start` nos logs (ordenados DESC)
-2. Verificar se existe `agent_complete` num indice MENOR (mais recente) que o `agent_start`
-3. Se `agent_complete` existe antes do `agent_start`: agente terminou, retornar todos os nos como `idle`
-4. Se nao existe `agent_complete`: agente esta a trabalhar, calcular estados normalmente MAS corrigir a logica de `running` vs `success`:
-   - Um no so e `running` se tem logs `info` E nao tem logs `success` posteriores dentro do mesmo no
-   - Um no e `success` se o ultimo log relevante tem `status: 'success'`
-   - Um no e `error` se tem qualquer log com `status: 'error'`
+**Remover:**
+- Tipo `RewriteQueueItem`
+- Query `rewrite-queue` e todo o realtime de `rewrite_queue`
+- Mutations: `addToQueue`, `skipQueue`, `forceRewrite`, `triggerProcessQueue`
+- Parte de `resetPipeline` que limpa `rewrite_queue`
+- Auto-cleanup destrutivo (que apaga artigos com mais de 12h)
 
-Corrigir tambem `isAgentRunning`: usar a mesma verificacao (agent_complete vs agent_start) em vez de depender dos estados dos nos.
+**Manter:**
+- Query de `pipeline-articles` (artigos)
+- Realtime de `articles`
+- `deleteArticles`, `publishArticle`, `unpublishArticle`
+- Organizacao por colunas (inbox, pending, published)
+- `refetch`
 
-**Ficheiro: `src/admin/components/pipeline/WorkflowStrip.tsx`**
+O hook passa a exportar apenas dados e accoes CRUD simples, sem queue management.
 
-Sem alteracoes estruturais. O componente ja reage correctamente aos estados — o problema esta apenas nos dados que recebe. Quando todos os nos forem `idle`, o componente ja mostra tudo em cinza neutro e sem animacao.
+### 2. `src/admin/hooks/useWorkflowStatus.ts` -- Remover `runAgent`
 
-## Ficheiros a modificar
+**Remover:**
+- Funcao `runAgent` (que chama `news-agent`)
+- Estado `isRunning` e `isManualRunning`
 
-| Ficheiro | Alteracao |
-|----------|-----------|
-| `src/admin/hooks/useWorkflowStatus.ts` | Corrigir `computeNodeStatuses` para detectar agente parado e corrigir logica de running vs success |
+**Manter:**
+- Query de `agent_logs` (leitura de logs)
+- Realtime de `agent_logs`
+- `computeNodeStatuses` (visualizacao do workflow)
+- `nodeStatuses`, `isAgentRunning` (baseado em logs), `lastExecution`, `recentLogs`
 
-## Resultado esperado
+### 3. `src/admin/components/editor/ContentPanel.tsx` -- Remover toolbar IA
 
-- Agente parado: todos os nos cinza, badge "Pronto", zero animacoes
-- Agente a trabalhar: nos iluminam-se sequencialmente conforme os logs chegam via realtime, no activo pulsa em azul, concluidos ficam verdes, erros ficam vermelhos
-- Ao recarregar a pagina: se o agente esta parado, tudo neutro; se esta a meio de execucao, mostra o estado real
+**Remover:**
+- `handleAIAction` e toda a logica de reformulacao
+- Botoes "Reformular", "Encurtar", "Tom Jornalistico"
+- Estado `isRewriting`, `currentAction`
+- Import de `supabase`
 
+**Manter:**
+- Todos os campos de edicao (titulo, lead, conteudo, tags, localizacao, factos rapidos)
+- A UI do formulario fica intacta, apenas sem os botoes de IA
+
+### 4. `src/admin/components/pipeline/PipelineBoard.tsx` -- Remover RewritingColumn e queue actions
+
+**Remover:**
+- Import e uso de `RewritingColumn`
+- Destructuring de `addToQueue`, `skipQueue`, `forceRewrite`, `triggerProcessQueue`, `queuedArticles`, `processingArticle`, `processingItem`, `isAddingToQueue`
+- Props `onRewrite` nos `PipelineCard` do Inbox e Pendentes
+- Botao "Reformular (N)" no bulk actions do Inbox
+
+**Manter:**
+- Colunas Inbox, Pendentes, Publicadas (3 colunas em vez de 4)
+- Delete, Publish, Unpublish
+- Seleccao de artigos e dialogo de confirmacao
+
+### 5. `src/admin/components/pipeline/PipelineCard.tsx` -- Remover props de queue
+
+**Remover:**
+- Props: `onRewrite`, `onSkipQueue`, `onForceRewrite`, `isQueued`
+- UI correspondente (botao de force rewrite, item "Furar fila" no dropdown)
+
+**Manter:**
+- Card visual, publish/unpublish/delete, navegacao para editor
+
+### 6. `src/admin/components/pipeline/RewritingColumn.tsx` -- Simplificar ou remover
+
+Como a coluna "Em Reformulacao" deixa de ter funcao sem o queue, pode ser removida do board. O componente fica no codigo mas sem ser importado (ou removemos o import).
+
+### 7. `src/components/news/ArticleChat.tsx` -- Remover chamadas ao chat
+
+**Remover:**
+- Chamadas a `supabase.functions.invoke('chat', ...)`
+- Logica de sugestoes e envio de mensagens que dependem da Edge Function
+
+**Manter:**
+- Estrutura visual do componente (fica inactivo/placeholder)
+
+### 8. `src/pages/ChatPage.tsx` -- Remover chamada ao chat
+
+**Remover:**
+- Chamada a `supabase.functions.invoke('chat', ...)`
+
+### 9. `src/hooks/useTrendingTopics.ts` -- Remover invocacao
+
+**Remover:**
+- Chamada a `supabase.functions.invoke('trending-topics')`
+- Retornar dados vazios ou fallback estatico
+
+### 10. `src/admin/components/pipeline/WorkflowStrip.tsx` -- Remover botao "Executar Pipeline"
+
+**Remover:**
+- Botao que chama `runAgent`
+- Import de `runAgent` e `isManualRunning`
+
+**Manter:**
+- Visualizacao dos nos do workflow (baseada em logs)
+- Badge de estado
+
+### 11. Edge Functions -- NAO apagar ficheiros
+
+As Edge Functions (`news-agent`, `process-queue`, `rewrite-article`, `chat`, `trending-topics`) estao no Lovable Cloud e sao deployadas automaticamente. Apagar os ficheiros impediria o re-deploy, mas como queremos migrar para o Supabase externo, **mantemos os ficheiros por agora** para nao quebrar nada. Serao substituidos quando a nova arquitectura (Supabase externo + OpenAI) estiver pronta.
+
+## Ficheiros a Modificar
+
+| Ficheiro | Tipo de alteracao |
+|---|---|
+| `src/admin/hooks/usePipeline.ts` | Remover queue logic, manter CRUD |
+| `src/admin/hooks/useWorkflowStatus.ts` | Remover `runAgent` |
+| `src/admin/components/editor/ContentPanel.tsx` | Remover toolbar IA |
+| `src/admin/components/pipeline/PipelineBoard.tsx` | Remover RewritingColumn e queue actions |
+| `src/admin/components/pipeline/PipelineCard.tsx` | Remover props de queue |
+| `src/admin/components/pipeline/WorkflowStrip.tsx` | Remover botao executar |
+| `src/components/news/ArticleChat.tsx` | Desactivar chamadas chat |
+| `src/pages/ChatPage.tsx` | Desactivar chamada chat |
+| `src/hooks/useTrendingTopics.ts` | Retornar fallback estatico |
+
+## Funcoes/Exports Removidos
+
+- `addToQueue`, `skipQueue`, `forceRewrite`, `triggerProcessQueue` (usePipeline)
+- `RewriteQueueItem` tipo (usePipeline)
+- `runAgent`, `isManualRunning` (useWorkflowStatus)
+- `handleAIAction` (ContentPanel)
+- Todas as chamadas `supabase.functions.invoke()`
+
+## Resultado
+
+- Zero chamadas a Edge Functions do Lovable Cloud
+- Zero dependencia de `rewrite_queue`
+- Zero logica de auto-rewrite ou queue management
+- Frontend funciona apenas com CRUD directo em `articles` via `supabase` client (que aponta para `cmxh...`)
+- Logs continuam visiveis (leitura de `agent_logs`)
+- UI mantida (3 colunas: Inbox, Pendentes, Publicadas)
+- Pronto para reconstruir: Frontend -> Supabase externo -> Edge Functions (cmxh) -> OpenAI
