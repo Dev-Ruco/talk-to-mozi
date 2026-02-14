@@ -1,175 +1,213 @@
+## Plano revisto completo — Agente RSS limpo e independente (Só Supabase cmxh…)
 
-# Limpar Arquitectura Antiga -- Remover Dependencias do Lovable Cloud
+### Objectivo
 
-## Resumo
+- **Frontend (Lovable)** apenas como UI.
+- **Backend 100% no teu Supabase**: `cmxhvptjfezxjjrrlwgx`.
+- Captação de notícias por fontes geridas no frontend.
+- **Sem duplicados**.
+- Filtros por categoria + keywords por fonte.
+- Logs em `pipeline_logs`.
 
-Remover toda a logica de backend antiga (queue management, Edge Function invocations, auto-rewrite) do frontend, mantendo apenas o CRUD de artigos e a leitura de logs. A UI nao e alterada estruturalmente -- apenas se removem as accoes que dependiam das Edge Functions antigas.
+---
 
-## Inventario Completo de Dependencias a Remover
+# FASE 1 — Base de dados (cmxh…)
 
-### Edge Function calls (`supabase.functions.invoke`)
+## 1) Tabela `sources` (ALTER, não quebrar o que existe)
 
-| Ficheiro | Funcao | Accao |
-|---|---|---|
-| `src/admin/hooks/useWorkflowStatus.ts` L113 | `news-agent` | Remover `runAgent` e toda a logica de execucao manual |
-| `src/admin/hooks/usePipeline.ts` L130, L182, L286, L304 | `process-queue` (4x) | Remover `addToQueue`, `skipQueue`, `forceRewrite`, `triggerProcessQueue` |
-| `src/admin/components/editor/ContentPanel.tsx` L38 | `rewrite-article` | Remover `handleAIAction` e toolbar de IA |
-| `src/components/news/ArticleChat.tsx` L61, L106 | `chat` (2x) | Remover chamadas de chat (sugestoes + perguntas) |
-| `src/pages/ChatPage.tsx` L122 | `chat` | Remover chamada de chat |
-| `src/hooks/useTrendingTopics.ts` L17 | `trending-topics` | Remover invocacao |
+Manter colunas actuais e adicionar:
 
-### Logica de `rewrite_queue` a remover
+- `feed_url text` (opcional)
+- `base_url text` (se já tens `url`, podes manter e usar `url` como base)
+- `language text default 'pt'`
+- `country text`
+- `include_keywords text[] default '{}'`
+- `exclude_keywords text[] default '{}'`
+- `updated_at timestamptz default now()`
 
-| Ficheiro | O que remover |
-|---|---|
-| `src/admin/hooks/usePipeline.ts` | Query de `rewrite_queue`, realtime subscription de `rewrite_queue`, mutations: `addToQueue`, `skipQueue`, `forceRewrite`, `triggerProcessQueue`, `resetPipeline` (parte que limpa queue), tipos `RewriteQueueItem` |
-| `src/admin/components/pipeline/PipelineBoard.tsx` | Props e uso de `addToQueue`, `skipQueue`, `forceRewrite`, `triggerProcessQueue`, `queuedArticles`, `processingArticle`, `processingItem`. Componente `RewritingColumn` |
-| `src/admin/components/pipeline/RewritingColumn.tsx` | Ficheiro inteiro pode ser esvaziado das accoes de queue (props `onSkipQueue`, `onForceRewrite`, `onTriggerProcessQueue`) |
-| `src/admin/components/pipeline/PipelineCard.tsx` | Props `onSkipQueue`, `onForceRewrite`, `onRewrite` |
+**Categorias**: usar o `categories` que já tens (text[]).
 
-### Lovable AI Gateway references (nas Edge Functions)
+✅ **Trigger updated_at** (opcional, mas bom):
 
-| Ficheiro | Referencia |
-|---|---|
-| `supabase/functions/news-agent/index.ts` | `ai.gateway.lovable.dev` |
-| `supabase/functions/process-queue/index.ts` | `ai.gateway.lovable.dev` |
-| `supabase/functions/rewrite-article/index.ts` | `ai.gateway.lovable.dev` |
-| `supabase/functions/chat/index.ts` | `ai.gateway.lovable.dev` (2x) |
+- trigger para actualizar `updated_at` em updates.
 
-Estas Edge Functions estao deployadas no Lovable Cloud e nao no Supabase externo. Nao as podemos apagar (o deploy e automatico), mas podemos remover os ficheiros do codigo para que deixem de ser re-deployadas.
+## 2) Tabela `articles` (anti-duplicados obrigatório)
 
-## Plano de Execucao
+Adicionar (se faltar):
 
-### 1. `src/admin/hooks/usePipeline.ts` -- Simplificar drasticamente
+- `source_id uuid` (fk [sources.id](http://sources.id))
+- `source_name text`
+- `source_url text`
+- `raw_title text` (ou mapear para `original_title`)
+- `raw_body text` (ou mapear para `original_content`)
+- `raw_published_at timestamptz`
+- `state text` (INBOX/PENDENTE/PUBLICADA/ERRO) ou usar a coluna existente `status`
 
-**Remover:**
-- Tipo `RewriteQueueItem`
-- Query `rewrite-queue` e todo o realtime de `rewrite_queue`
-- Mutations: `addToQueue`, `skipQueue`, `forceRewrite`, `triggerProcessQueue`
-- Parte de `resetPipeline` que limpa `rewrite_queue`
-- Auto-cleanup destrutivo (que apaga artigos com mais de 12h)
+✅ **Anti-duplicados:**
 
-**Manter:**
-- Query de `pipeline-articles` (artigos)
-- Realtime de `articles`
-- `deleteArticles`, `publishArticle`, `unpublishArticle`
-- Organizacao por colunas (inbox, pending, published)
-- `refetch`
+- criar índice unique:
+  - `UNIQUE(source_url)` (partial se necessário: `WHERE source_url IS NOT NULL`)
 
-O hook passa a exportar apenas dados e accoes CRUD simples, sem queue management.
+> Isto garante que mesmo que a function tente inserir duplicado, a BD bloqueia.
 
-### 2. `src/admin/hooks/useWorkflowStatus.ts` -- Remover `runAgent`
+## 3) Logs
 
-**Remover:**
-- Funcao `runAgent` (que chama `news-agent`)
-- Estado `isRunning` e `isManualRunning`
+Usar a tua tabela existente `pipeline_logs` (não recriar).  
+Só confirmar que tem colunas pelo menos:
 
-**Manter:**
-- Query de `agent_logs` (leitura de logs)
-- Realtime de `agent_logs`
-- `computeNodeStatuses` (visualizacao do workflow)
-- `nodeStatuses`, `isAgentRunning` (baseado em logs), `lastExecution`, `recentLogs`
+- `node`, `level`, `message`, `meta`, `source_id`, `article_id`, `created_at`.
 
-### 3. `src/admin/components/editor/ContentPanel.tsx` -- Remover toolbar IA
+---
 
-**Remover:**
-- `handleAIAction` e toda a logica de reformulacao
-- Botoes "Reformular", "Encurtar", "Tom Jornalistico"
-- Estado `isRewriting`, `currentAction`
-- Import de `supabase`
+# FASE 2 — Edge Functions no teu Supabase (cmxh…)
 
-**Manter:**
-- Todos os campos de edicao (titulo, lead, conteudo, tags, localizacao, factos rapidos)
-- A UI do formulario fica intacta, apenas sem os botoes de IA
+## 4) Edge Function `rss-fetch` (captação real)
 
-### 4. `src/admin/components/pipeline/PipelineBoard.tsx` -- Remover RewritingColumn e queue actions
+Criar no teu Supabase: `supabase/functions/rss-fetch/index.ts`
 
-**Remover:**
-- Import e uso de `RewritingColumn`
-- Destructuring de `addToQueue`, `skipQueue`, `forceRewrite`, `triggerProcessQueue`, `queuedArticles`, `processingArticle`, `processingItem`, `isAddingToQueue`
-- Props `onRewrite` nos `PipelineCard` do Inbox e Pendentes
-- Botao "Reformular (N)" no bulk actions do Inbox
+### Entrada
 
-**Manter:**
-- Colunas Inbox, Pendentes, Publicadas (3 colunas em vez de 4)
-- Delete, Publish, Unpublish
-- Seleccao de artigos e dialogo de confirmacao
+```json
+{
+  "source_id": "opcional",
+  "limit_sources": 10,
+  "limit_items_per_source": 20,
+  "dry_run": false
+}
 
-### 5. `src/admin/components/pipeline/PipelineCard.tsx` -- Remover props de queue
+```
 
-**Remover:**
-- Props: `onRewrite`, `onSkipQueue`, `onForceRewrite`, `isQueued`
-- UI correspondente (botao de force rewrite, item "Furar fila" no dropdown)
+### Comportamento
 
-**Manter:**
-- Card visual, publish/unpublish/delete, navegacao para editor
+1. Seleccionar fontes:
 
-### 6. `src/admin/components/pipeline/RewritingColumn.tsx` -- Simplificar ou remover
+- se `source_id` existir → só essa fonte
+- senão → todas `is_active=true`
 
-Como a coluna "Em Reformulacao" deixa de ter funcao sem o queue, pode ser removida do board. O componente fica no codigo mas sem ser importado (ou removemos o import).
+2. Resolver feed:
 
-### 7. `src/components/news/ArticleChat.tsx` -- Remover chamadas ao chat
+- se `feed_url` existir → usar
+- senão → tentar discovery (por ordem):
+  - `${base}/feed/`
+  - `${base}/rss`
+  - `${base}/feed`
+  - `${base}/?feed=rss2`
 
-**Remover:**
-- Chamadas a `supabase.functions.invoke('chat', ...)`
-- Logica de sugestoes e envio de mensagens que dependem da Edge Function
+3. Parse RSS/Atom:
 
-**Manter:**
-- Estrutura visual do componente (fica inactivo/placeholder)
+- extrair itens: `title`, `link`, `pubDate`, `description/content`
 
-### 8. `src/pages/ChatPage.tsx` -- Remover chamada ao chat
+4. Aplicar filtros por fonte:
 
-**Remover:**
-- Chamada a `supabase.functions.invoke('chat', ...)`
+- `include_keywords`: aceitar só se pelo menos 1 keyword aparecer (título+resumo, case-insensitive)
+- `exclude_keywords`: rejeitar se aparecer
+- `categories`:
+  - se o RSS tiver categorias/tags → mapear e comparar
+  - fallback: heurística por keywords (economia/política/desporto/etc.)
 
-### 9. `src/hooks/useTrendingTopics.ts` -- Remover invocacao
+5. Anti-duplicados:
 
-**Remover:**
-- Chamada a `supabase.functions.invoke('trending-topics')`
-- Retornar dados vazios ou fallback estatico
+- se `link` vazio → ignorar (ou gerar fingerprint opcional)
+- se `source_url` já existe → ignorar
+- na inserção, confiar também no `UNIQUE(source_url)`
 
-### 10. `src/admin/components/pipeline/WorkflowStrip.tsx` -- Remover botao "Executar Pipeline"
+6. Inserir em `articles`:
 
-**Remover:**
-- Botao que chama `runAgent`
-- Import de `runAgent` e `isManualRunning`
+- `state='INBOX'` (ou `status='captured'`)
+- gravar `source_id`, `source_name`, `source_url`, `raw_title`, `raw_body/raw_excerpt`, `raw_published_at`
 
-**Manter:**
-- Visualizacao dos nos do workflow (baseada em logs)
-- Badge de estado
+7. `dry_run=true`:
 
-### 11. Edge Functions -- NAO apagar ficheiros
+- não inserir
+- devolver preview com:
+  - itens aceites/rejeitados + motivo
 
-As Edge Functions (`news-agent`, `process-queue`, `rewrite-article`, `chat`, `trending-topics`) estao no Lovable Cloud e sao deployadas automaticamente. Apagar os ficheiros impediria o re-deploy, mas como queremos migrar para o Supabase externo, **mantemos os ficheiros por agora** para nao quebrar nada. Serao substituidos quando a nova arquitectura (Supabase externo + OpenAI) estiver pronta.
+8. Logs:
 
-## Ficheiros a Modificar
+- gravar em `pipeline_logs` com node=`RSS_FETCH`
 
-| Ficheiro | Tipo de alteracao |
-|---|---|
-| `src/admin/hooks/usePipeline.ts` | Remover queue logic, manter CRUD |
-| `src/admin/hooks/useWorkflowStatus.ts` | Remover `runAgent` |
-| `src/admin/components/editor/ContentPanel.tsx` | Remover toolbar IA |
-| `src/admin/components/pipeline/PipelineBoard.tsx` | Remover RewritingColumn e queue actions |
-| `src/admin/components/pipeline/PipelineCard.tsx` | Remover props de queue |
-| `src/admin/components/pipeline/WorkflowStrip.tsx` | Remover botao executar |
-| `src/components/news/ArticleChat.tsx` | Desactivar chamadas chat |
-| `src/pages/ChatPage.tsx` | Desactivar chamada chat |
-| `src/hooks/useTrendingTopics.ts` | Retornar fallback estatico |
+### Segurança
 
-## Funcoes/Exports Removidos
+- **Não usar** `verify_jwt=false`**.**
+- Função exige login (JWT), porque é backoffice.
+- Dentro da function usa `SUPABASE_SERVICE_ROLE_KEY` para escrever sem problemas de RLS.
 
-- `addToQueue`, `skipQueue`, `forceRewrite`, `triggerProcessQueue` (usePipeline)
-- `RewriteQueueItem` tipo (usePipeline)
-- `runAgent`, `isManualRunning` (useWorkflowStatus)
-- `handleAIAction` (ContentPanel)
-- Todas as chamadas `supabase.functions.invoke()`
+## 5) Edge Function `rss-preview` (opcional)
 
-## Resultado
+Podes dispensar: usar `rss-fetch` com `dry_run=true`.
 
-- Zero chamadas a Edge Functions do Lovable Cloud
-- Zero dependencia de `rewrite_queue`
-- Zero logica de auto-rewrite ou queue management
-- Frontend funciona apenas com CRUD directo em `articles` via `supabase` client (que aponta para `cmxh...`)
-- Logs continuam visiveis (leitura de `agent_logs`)
-- UI mantida (3 colunas: Inbox, Pendentes, Publicadas)
-- Pronto para reconstruir: Frontend -> Supabase externo -> Edge Functions (cmxh) -> OpenAI
+---
+
+# FASE 3 — Frontend (Lovable) ligado ao cmxh…
+
+## 6) Página `/admin/sources` (gestão completa)
+
+Actualizar UI para:
+
+- criar/editar fonte
+- activar/desactivar
+- definir:
+  - `feed_url` (opcional)
+  - `categories` (tags/multi)
+  - `include_keywords` (tags)
+  - `exclude_keywords` (tags)
+  - `fetch_interval_minutes`
+  - language/country (opcional)
+
+Botões:
+
+- **Testar** → chama `supabase.functions.invoke('rss-fetch', { body: { source_id, dry_run: true } })`
+- **Captar agora** → chama `rss-fetch` com `{ source_id }`
+- **Captar tudo** → chama `rss-fetch` sem `source_id`
+
+Após captar:
+
+- refetch da lista de `articles` (para encher INBOX)
+
+## 7) Pipeline/Inbox
+
+- Coluna INBOX mostra artigos captados
+- Cada card tem botão “Processar” (chama `pipeline-run`)
+
+---
+
+# FASE 4 — Seed de fontes iniciais (cmxh…)
+
+## 8) Inserir fontes base (SQL seed)
+
+Inserir as 5 fontes com:
+
+- `name`
+- `url/base_url`
+- `feed_url` vazio (para discovery) ou preenchido se souberes
+- `categories` como sugerido
+
+Fontes:
+
+- [opais.co.mz](http://opais.co.mz)
+- [diarioeconomico.co.mz](http://diarioeconomico.co.mz)
+- [aimnews.org](http://aimnews.org)
+- lusa.pt/lusofonia
+- [dailymaverick.co.za](http://dailymaverick.co.za)
+
+---
+
+# FASE 5 — Testes (curtos)
+
+1. Criar 1 fonte no UI e clicar **Testar** → deve mostrar preview
+2. Clicar **Captar agora** → deve inserir artigos e não duplicar
+3. Clicar **Captar agora** outra vez → deve inserir 0 (só logs de duplicados)
+4. Abrir 1 artigo INBOX → clicar **Processar** → `pipeline-run` → PENDENTE
+
+---
+
+# Entregáveis
+
+- SQL de ALTERs + índice unique em `articles.source_url`
+- Edge Function `rss-fetch` (cmxh…)
+- Actualização UI `/admin/sources` com Testar/Captar
+- Logs em `pipeline_logs`
+
+---
+
+Se este plano corresponde ao que queres, podes considerar **aprovado**.
