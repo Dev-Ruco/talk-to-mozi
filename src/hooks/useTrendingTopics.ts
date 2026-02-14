@@ -1,52 +1,33 @@
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-
-interface TrendingTopicsData {
-  topics: string[];
-  categories: string[];
-  generatedAt: string;
-}
-
 /**
- * Hook to fetch trending topics from published articles in the last 24h
+ * Hook to provide trending topics — currently returns static fallback.
+ * Will be reconnected when Edge Functions are deployed on the external backend.
  */
 export function useTrendingTopics() {
-  return useQuery<TrendingTopicsData>({
-    queryKey: ['trending-topics'],
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('trending-topics');
-      
-      if (error) {
-        console.error('[useTrendingTopics] Error:', error);
-        throw error;
-      }
-      
-      return {
-        topics: data?.topics || [],
-        categories: data?.categories || [],
-        generatedAt: data?.generated_at || new Date().toISOString(),
-      };
+  return {
+    data: {
+      topics: [],
+      categories: [],
+      generatedAt: new Date().toISOString(),
     },
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-    refetchOnWindowFocus: false,
-  });
+    isLoading: false,
+    error: null,
+  };
 }
 
 /**
  * Generate search phrase suggestions based on trending topics
  */
 export function useTrendingSuggestions() {
-  const { data, isLoading, error } = useTrendingTopics();
-
-  const suggestions = data?.topics?.slice(0, 4).map(topic => 
-    `O que está a acontecer com ${topic}?`
-  ) || [];
-
   return {
-    suggestions,
-    topics: data?.topics || [],
-    categories: data?.categories || [],
-    isLoading,
-    error,
+    suggestions: [
+      'Mostra-me tudo sobre economia esta semana',
+      'Qual foi a última decisão do governo?',
+      'O que está a acontecer com o dólar?',
+      'Notícias sobre saúde em Moçambique',
+    ],
+    topics: [],
+    categories: [],
+    isLoading: false,
+    error: null,
   };
 }

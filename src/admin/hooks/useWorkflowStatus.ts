@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
 import { AgentLog } from '../types/admin';
 
 export type NodeStatus = 'idle' | 'running' | 'success' | 'error';
@@ -22,14 +21,10 @@ const NODE_DEFINITIONS = [
 ];
 
 function computeNodeStatuses(logs: AgentLog[]): { nodes: WorkflowNode[]; agentRunning: boolean } {
-  // Logs are ordered DESC (newest first)
   const startIdx = logs.findIndex(l => l.action === 'agent_start');
   const completeIdx = logs.findIndex(l => l.action === 'agent_complete');
-
-  // Agent is running only if agent_start exists and no agent_complete is more recent
   const agentRunning = startIdx >= 0 && (completeIdx < 0 || completeIdx > startIdx);
 
-  // If agent is NOT running, all nodes idle
   if (!agentRunning) {
     return {
       agentRunning: false,
@@ -37,29 +32,23 @@ function computeNodeStatuses(logs: AgentLog[]): { nodes: WorkflowNode[]; agentRu
     };
   }
 
-  // Agent IS running — use logs from newest down to (and including) agent_start
   const currentRunLogs = logs.slice(0, startIdx + 1);
-
   const nodes = NODE_DEFINITIONS.map(def => {
     const nodeLogs = currentRunLogs.filter(l => def.actions.includes(l.action || ''));
     let status: NodeStatus = 'idle';
-
     if (nodeLogs.length > 0) {
       const hasError = nodeLogs.some(l => l.status === 'error');
-      // Most recent log for this node determines running vs success
       const mostRecent = nodeLogs[0];
       if (hasError) status = 'error';
       else if (mostRecent.status === 'success') status = 'success';
       else status = 'running';
     } else {
-      // If a later node is already active, this one implicitly succeeded
       const nodeIdx = NODE_DEFINITIONS.indexOf(def);
       const laterActive = NODE_DEFINITIONS.slice(nodeIdx + 1).some(laterDef =>
         currentRunLogs.some(l => laterDef.actions.includes(l.action || ''))
       );
       if (laterActive) status = 'success';
     }
-
     return { ...def, status };
   });
 
@@ -68,7 +57,6 @@ function computeNodeStatuses(logs: AgentLog[]): { nodes: WorkflowNode[]; agentRu
 
 export function useWorkflowStatus() {
   const queryClient = useQueryClient();
-  const [isRunning, setIsRunning] = useState(false);
 
   const { data: logs = [], isLoading } = useQuery({
     queryKey: ['workflow-agent-logs'],
@@ -101,38 +89,15 @@ export function useWorkflowStatus() {
   }, []);
 
   const { nodes: nodeStatuses, agentRunning: isAgentActive } = computeNodeStatuses(logs);
-
   const lastExecution = logs.find(l => l.action === 'agent_complete' || l.action === 'agent_start');
-
   const recentLogs = logs.slice(0, 15);
-
-  const runAgent = useCallback(async () => {
-    setIsRunning(true);
-    toast.info('A executar pipeline...');
-    try {
-      const { data, error } = await supabase.functions.invoke('news-agent');
-      if (error) {
-        toast.error('Erro ao executar agente: ' + error.message);
-      } else {
-        toast.success(
-          `Pipeline executado: ${data?.articles_found || 0} encontradas, ${data?.articles_saved || 0} guardadas`
-        );
-      }
-    } catch {
-      toast.error('Erro de comunicação com o agente');
-    } finally {
-      setIsRunning(false);
-    }
-  }, []);
 
   return {
     nodeStatuses,
-    isAgentRunning: isAgentActive || isRunning,
-    isManualRunning: isRunning,
+    isAgentRunning: isAgentActive,
     lastExecution,
     recentLogs,
     allLogs: logs,
     isLoading,
-    runAgent,
   };
 }

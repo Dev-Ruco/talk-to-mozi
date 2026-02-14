@@ -4,14 +4,12 @@ import {
   FileCheck, 
   CheckCircle, 
   Trash2, 
-  Sparkles,
   RefreshCw,
   Loader2
 } from 'lucide-react';
-import { usePipeline, PipelineArticle } from '../../hooks/usePipeline';
+import { usePipeline } from '../../hooks/usePipeline';
 import { PipelineColumn } from './PipelineColumn';
 import { PipelineCard } from './PipelineCard';
-import { RewritingColumn } from './RewritingColumn';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -30,18 +28,10 @@ export function PipelineBoard() {
     inboxArticles,
     pendingArticles,
     publishedArticles,
-    queuedArticles,
-    processingArticle,
-    processingItem,
     isLoading,
-    addToQueue,
-    skipQueue,
     deleteArticles,
     publishArticle,
     unpublishArticle,
-    forceRewrite,
-    triggerProcessQueue,
-    isAddingToQueue,
     isDeleting,
     refetch,
   } = usePipeline();
@@ -54,21 +44,9 @@ export function PipelineBoard() {
 
   const toggleSelection = (set: Set<string>, id: string, setter: (s: Set<string>) => void) => {
     const newSet = new Set(set);
-    if (newSet.has(id)) {
-      newSet.delete(id);
-    } else {
-      newSet.add(id);
-    }
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
     setter(newSet);
-  };
-
-  const handleBulkRewrite = () => {
-    if (selectedInbox.size === 0) {
-      toast.warning('Seleccione artigos para reformular');
-      return;
-    }
-    selectedInbox.forEach(id => addToQueue({ articleId: id }));
-    setSelectedInbox(new Set());
   };
 
   const handleBulkDelete = (source: 'inbox' | 'pending') => {
@@ -92,7 +70,6 @@ export function PipelineBoard() {
   const handlePublish = async (articleId: string) => {
     setPublishingArticles(prev => new Set(prev).add(articleId));
     publishArticle(articleId);
-    // Remove from publishing state after a short delay (Realtime will update the UI)
     setTimeout(() => {
       setPublishingArticles(prev => {
         const newSet = new Set(prev);
@@ -101,8 +78,6 @@ export function PipelineBoard() {
       });
     }, 2000);
   };
-
-  const queuedArticleIds = new Set(queuedArticles.map(q => q.article_id));
 
   if (isLoading) {
     return (
@@ -122,27 +97,15 @@ export function PipelineBoard() {
           count={inboxArticles.length}
           emptyMessage="Nenhum artigo captado"
           actions={
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleBulkRewrite}
-                disabled={selectedInbox.size === 0 || isAddingToQueue}
-                className="h-7 gap-1 text-xs"
-              >
-                <Sparkles className="h-3 w-3" />
-                Reformular ({selectedInbox.size})
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleBulkDelete('inbox')}
-                disabled={selectedInbox.size === 0}
-                className="h-7 text-destructive hover:text-destructive"
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleBulkDelete('inbox')}
+              disabled={selectedInbox.size === 0}
+              className="h-7 text-destructive hover:text-destructive"
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
           }
         >
           {inboxArticles.map(article => (
@@ -151,25 +114,13 @@ export function PipelineBoard() {
               article={article}
               isSelected={selectedInbox.has(article.id)}
               onSelect={() => toggleSelection(selectedInbox, article.id, setSelectedInbox)}
-              onRewrite={() => addToQueue({ articleId: article.id })}
               onDelete={() => {
                 setArticlesToDelete([article.id]);
                 setDeleteDialogOpen(true);
               }}
-              isQueued={queuedArticleIds.has(article.id)}
             />
           ))}
         </PipelineColumn>
-
-        {/* Rewriting Column */}
-        <RewritingColumn
-          processingArticle={processingArticle || null}
-          processingItem={processingItem || null}
-          queuedItems={queuedArticles}
-          onSkipQueue={skipQueue}
-          onForceRewrite={forceRewrite}
-          onTriggerProcessQueue={triggerProcessQueue}
-        />
 
         {/* Pending Column */}
         <PipelineColumn
@@ -196,13 +147,11 @@ export function PipelineBoard() {
               article={article}
               isSelected={selectedPending.has(article.id)}
               onSelect={() => toggleSelection(selectedPending, article.id, setSelectedPending)}
-              onRewrite={() => addToQueue({ articleId: article.id })}
               onPublish={() => handlePublish(article.id)}
               onDelete={() => {
                 setArticlesToDelete([article.id]);
                 setDeleteDialogOpen(true);
               }}
-              isQueued={queuedArticleIds.has(article.id)}
               isPublishing={publishingArticles.has(article.id)}
             />
           ))}
@@ -219,7 +168,7 @@ export function PipelineBoard() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={refetch}
+              onClick={() => refetch()}
               className="h-7"
             >
               <RefreshCw className="h-3 w-3" />
