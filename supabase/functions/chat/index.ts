@@ -42,8 +42,8 @@ serve(async (req) => {
     if (action === 'generate_suggestions') {
       console.log(`[chat] Generating suggestions for article: ${article_id || 'global'}`);
       
-      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-      if (!LOVABLE_API_KEY) {
+      const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+      if (!OPENAI_API_KEY) {
         // Return default suggestions if AI not available
         return new Response(
           JSON.stringify({
@@ -102,14 +102,14 @@ Responde APENAS com um JSON array de 4 strings:
 ["pergunta 1", "pergunta 2", "pergunta 3", "pergunta 4"]`;
 
         try {
-          const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
             headers: {
-              "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+              "Authorization": `Bearer ${OPENAI_API_KEY}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
+              model: "gpt-4o-mini",
               messages: [{ role: "user", content: suggestionPrompt }],
               temperature: 0.8,
               max_tokens: 300,
@@ -276,25 +276,25 @@ INSTRUÇÕES DE RESPOSTA:
     ];
 
     // Call Lovable AI Gateway
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.error("[chat] LOVABLE_API_KEY not configured");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!OPENAI_API_KEY) {
+      console.error("[chat] OPENAI_API_KEY not configured");
       return new Response(
         JSON.stringify({ error: "Serviço de IA não configurado" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log("[chat] Calling Lovable AI Gateway...");
+    console.log("[chat] Calling OpenAI API...");
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "gpt-4o-mini",
         messages,
         temperature: 0.7,
         max_tokens: 1000,
