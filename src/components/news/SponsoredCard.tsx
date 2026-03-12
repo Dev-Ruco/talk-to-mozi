@@ -46,7 +46,7 @@ export function SponsoredCard({ ad, variant = 'feed' }: SponsoredCardProps) {
   // Feed variant — same h-[360px] as NewsCard
   return (
     <motion.article
-      className="group h-[360px] flex flex-col overflow-hidden rounded-xl border bg-card"
+      className="group flex flex-col overflow-hidden rounded-xl border bg-card"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}

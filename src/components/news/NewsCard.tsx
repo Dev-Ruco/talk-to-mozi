@@ -111,7 +111,7 @@ export function NewsCard({ article, variant = 'default' }: NewsCardProps) {
   // Default — uniform height card
   return (
     <motion.article
-      className="group h-[360px] flex flex-col overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-md"
+      className="group flex flex-col overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-md"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
