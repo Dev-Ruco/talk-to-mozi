@@ -1,134 +1,83 @@
+# Diagnostico end-to-end da Edge Function rss-fetch
 
+## 1. Corrigir CORS na Edge Function
 
-# Redesign do B NEWS — Portal de Notícias com IA Conversacional
+O ficheiro `supabase/functions/rss-fetch/index.ts` tem CORS incompleto. O SDK do Supabase envia headers adicionais que nao estao na whitelist actual.
 
-Este plano abrange as alterações visuais e estruturais solicitadas, divididas em fases incrementais para evitar regressões.
+**Actual (incompleto):**
 
----
-
-## Fase 1: Tipografia e Sistema de Cards Uniforme
-
-### Tipografia
-- Reforçar hierarquia no `index.css` e nos componentes:
-  - H1 (títulos de página): `font-weight: 700`, `text-2xl` a `text-4xl`
-  - Títulos de artigo nos cards: `font-weight: 700` (actualmente `600/semibold` — subir para `bold`)
-  - Categorias/badges: `font-weight: 500`
-  - Metadata (data, tempo): `font-weight: 400`
-
-### Cards uniformes (`NewsCard.tsx` + `SponsoredCard.tsx`)
-- Aplicar altura fixa ao card default:
-  - Card: `h-[360px] flex flex-col`
-  - Imagem: `h-[180px]` (substituir `AspectRatio` por altura fixa)
-  - Título: `line-clamp-2`, `font-bold`
-  - Resumo: `line-clamp-2`
-  - Conteúdo inferior: `mt-auto` para empurrar acções para baixo
-- Aplicar o mesmo layout dimensional ao `SponsoredCard` variant `feed`
-- Garantir que cards de publicidade e notícias no feed são indistinguíveis em tamanho
-
-**Ficheiros**: `src/components/news/NewsCard.tsx`, `src/components/news/SponsoredCard.tsx`
-
----
-
-## Fase 2: Redesign da Secção "Últimas Notícias de Hoje"
-
-### Remover secção "Em destaque hoje"
-- Eliminar `<FeaturedArticle />` da página Index
-
-### Novo container destacado
-- Criar container com gradiente da marca (roxo B NEWS), bordas arredondadas
-- Dentro: slider horizontal automático com cards de notícias
-- Slider: autoplay 5s, loop infinito, pausa ao hover
-- Mover o carrossel existente do `HeroChat` para este container, ou reestruturar o `HeroChat` para integrar este bloco
-
-### Estrutura visual:
-```text
-┌─────────────────────────────────────────┐
-│  ÚLTIMAS NOTÍCIAS DE HOJE               │
-│  bg: gradiente roxo da marca            │
-│                                         │
-│  [card] [card] [card] [card]  → auto    │
-│         dots de navegação               │
-└─────────────────────────────────────────┘
+```
+"Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
 ```
 
-**Ficheiros**: `src/pages/Index.tsx`, `src/components/news/HeroChat.tsx`, `src/components/news/FeaturedArticle.tsx` (remover uso)
+**Correcto (com headers do SDK):**
 
----
+```
+"Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version"
+```
 
-## Fase 3: Página de Artigo — Reordenar e Slider de Relacionados
 
-### Nova ordem da página de artigo:
-1. Conteúdo do artigo (título, meta, imagem, texto, factos rápidos)
-2. Chat IA contextual (já existe)
-3. Artigos relacionados em slider horizontal (mover para depois do chat)
+| Ficheiro                                | Alteracao                                           |
+| --------------------------------------- | --------------------------------------------------- |
+| `supabase/functions/rss-fetch/index.ts` | Actualizar corsHeaders com headers completos do SDK |
 
-### Slider de artigos relacionados
-- Substituir grid estático por carrossel horizontal Embla
-- 3-4 cards visíveis em desktop, 1-2 em mobile
-- Autoplay, loop infinito, animação suave
-- Cards com o mesmo tamanho uniforme da Fase 1
 
-**Ficheiros**: `src/pages/ArticlePage.tsx`
+## 2. Adicionar botao de diagnostico em SourcesPage
 
----
+Adicionar um botao temporario "Debug rss-fetch" no topo da pagina `/admin/sources` que executa duas chamadas em paralelo:
 
-## Fase 4: Feed Estilo Rede Social + Infinite Scroll
+- **Via SDK**: `supabase.functions.invoke("rss-fetch", { body: { dry_run: true } })`
+- **Via fetch directo**: `fetch("https://cmxhvptjfezxjjrrlwgx.supabase.co/functions/v1/rss-fetch", ...)`
 
-### Já implementado:
-- Infinite scroll com IntersectionObserver ✓
-- Cards de publicidade intercalados a cada 8 artigos ✓
+O resultado aparece num modal com:
 
-### Melhorias:
-- Aplicar o sistema de cards uniformes (Fase 1)
-- Garantir que cards de publicidade têm exactamente as mesmas dimensões
+- URL chamado
+- Status code (do fetch directo)
+- Resposta completa (JSON formatado)
+- Diagnostico automatico baseado no status:
+  - 404 = function nao deployada
+  - 401/403 = problema de autenticacao
+  - 400/415 = body ou headers errados
+  - 500 = erro interno na function
+  - 200 = tudo OK
 
-**Ficheiros**: `src/components/news/NewsFeed.tsx`
 
----
+| Ficheiro                          | Alteracao                                              |
+| --------------------------------- | ------------------------------------------------------ |
+| `src/admin/pages/SourcesPage.tsx` | Adicionar botao "Debug rss-fetch" + modal de resultado |
 
-## Fase 5: Sidebar e Navegação
 
-### Sidebar esquerda (já existe)
-- Adicionar secção "Trending" abaixo das categorias (usando `useTrendingTopics`)
-- Manter fixa durante scroll (já está `sticky`)
+## 3. O que NAO muda
 
-### Mobile
-- Cards já respondem ao viewport
-- Manter botão flutuante de chat IA no artigo
+- `client.ts` -- ja esta correcto, nao se toca
+- `.env` -- nao se usa para as chamadas (o client tem valores hardcoded)
+- Nenhum outro ficheiro e alterado
 
-**Ficheiros**: `src/components/layout/DesktopSidebar.tsx`
+## 4. Apos implementacao
 
----
+Depois de aprovado e implementado:
 
-## Fase 6: Sugestões de Artigos no Chat
+1. Voce precisa de fazer deploy manual da function actualizada (com CORS corrigido) no projecto externo:
+  ```
+   supabase functions deploy rss-fetch --project-ref cmxhvptjfezxjjrrlwgx
+  ```
+2. Abrir `/admin/sources` e clicar "Debug rss-fetch"
+3. O modal mostrara exactamente o status, URL e resposta -- prova real da conectividade  
+  
+Confirmar no Supabase externo que a function aparece em “Edge Functions” e está activa.
+4. Se der **500**, ver os logs da function no projecto externo (não no Lovable Cloud).
 
-### Dentro do chat (`InlineChatCarousel`)
-- Já existe o mecanismo de inserir carrosseis de artigos a cada 2 interacções
-- Garantir que os cards do carrossel inline seguem o mesmo sistema visual uniforme
+## 5) Resultado esperado: quase certo, mas corrige esta frase
 
-**Ficheiros**: `src/components/news/InlineChatCarousel.tsx`
+> “Se CORS bloqueia: o fetch directo falha mas o diagnostico indica a causa”
 
----
+## Resultado esperado
 
-## Resumo de Ficheiros a Modificar
-
-| Ficheiro | Alteração |
-|---|---|
-| `src/components/news/NewsCard.tsx` | Cards com altura fixa, tipografia reforçada |
-| `src/components/news/SponsoredCard.tsx` | Mesmo tamanho que NewsCard |
-| `src/components/news/HeroChat.tsx` | Container com gradiente da marca para o carrossel |
-| `src/components/news/FeaturedArticle.tsx` | Remover da página Index |
-| `src/pages/Index.tsx` | Remover FeaturedArticle, ajustar layout |
-| `src/pages/ArticlePage.tsx` | Reordenar: chat antes de relacionados; slider horizontal |
-| `src/components/layout/DesktopSidebar.tsx` | Adicionar trending topics |
-| `src/components/news/InlineChatCarousel.tsx` | Uniformizar cards |
-| `src/index.css` | Sem grandes mudanças (tipografia já configurada) |
-
----
-
-## O que NÃO muda
-- Backend, Edge Functions, base de dados
-- Lógica de chat IA
-- Sistema de autenticação admin
-- Rotas existentes
-
+- Se a function esta deployada em `cmxhv...`: modal mostra status 200 + dados JSON
+- Se nao esta deployada: modal mostra 404 com diagnostico claro
+- Se CORS bloqueia: o fetch directo falha mas o diagnostico indica a causa  
+Recomendações finais (curtas)
+  1. **CORS**: ou amplia a whitelist (como no plano) ou usa “echo” do `Access-Control-Request-Headers` no OPTIONS (mais robusto).
+  2. **Debug modal**: inclui caso “sem status” e mostra `error.message` → é aí que apanhas CORS.
+  3. **Deploy**: garante que estás a ver o projecto `cmxhv…` e não `kwwz…` quando checas logs.
+  Se quiseres, posso reescrever este plano numa versão “pronta para colar no Lovable” com as melhorias acima, mantendo a mesma estrutura.
