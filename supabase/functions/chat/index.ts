@@ -42,8 +42,8 @@ serve(async (req) => {
     if (action === 'generate_suggestions') {
       console.log(`[chat] Generating suggestions for article: ${article_id || 'global'}`);
       
-      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-      if (!LOVABLE_API_KEY) {
+      const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+      if (!OPENAI_API_KEY) {
         // Return default suggestions if AI not available
         return new Response(
           JSON.stringify({
