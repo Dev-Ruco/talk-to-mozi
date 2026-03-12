@@ -156,10 +156,10 @@ async function autoRewriteArticle(
     errorMessage?: string
   ) => Promise<void>
 ): Promise<boolean> {
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 
-  if (!LOVABLE_API_KEY) {
-    console.log("LOVABLE_API_KEY not configured, skipping auto-rewrite");
+  if (!OPENAI_API_KEY) {
+    console.log("OPENAI_API_KEY not configured, skipping auto-rewrite");
     return false;
   }
 
