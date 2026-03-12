@@ -293,7 +293,7 @@ Deno.serve(async (req) => {
     }
 
     // Process the article
-    const result = await processArticle(supabase, nextItem, LOVABLE_API_KEY);
+    const result = await processArticle(supabase, nextItem, OPENAI_API_KEY);
 
     return new Response(
       JSON.stringify(result),
