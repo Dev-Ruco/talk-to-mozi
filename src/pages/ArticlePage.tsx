@@ -372,7 +372,9 @@ export default function ArticlePage() {
 
         {/* 7. Chat with article */}
         <div className="mt-8">
-          <ArticleChat article={article} />
+          <ErrorBoundary>
+            <ArticleChat article={article} />
+          </ErrorBoundary>
         </div>
       </motion.article>
 
