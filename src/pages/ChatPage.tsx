@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Send, Sparkles, AlertCircle } from 'lucide-react';
+import { Send, Sparkles, AlertCircle, RotateCcw } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { NewsCard } from '@/components/news/NewsCard';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import { useLatestArticles } from '@/hooks/usePublishedArticles';
 import { useTrendingSuggestions } from '@/hooks/useTrendingTopics';
 import { InlineChatCarousel } from '@/components/news/InlineChatCarousel';
 import { sponsoredAds } from '@/data/ads';
-import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ChatMessage {
   id: string;
@@ -26,6 +26,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: latestArticles, isLoading: isLoadingLatest } = useLatestArticles(6);
@@ -53,6 +54,7 @@ export default function ChatPage() {
     setInput('');
     setIsLoading(true);
     setError(null);
+    setLastFailedMessage(null);
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -61,16 +63,38 @@ export default function ChatPage() {
     };
     setMessages(prev => [...prev, userMessage]);
 
-    // Chat temporarily disabled — pending new backend
-    setTimeout(() => {
+    try {
+      const conversationHistory = messages.map(m => ({ role: m.role, content: m.content }));
+
+      const { data, error: fnError } = await supabase.functions.invoke('chat', {
+        body: {
+          question: text,
+          conversation_history: conversationHistory,
+        },
+      });
+
+      if (fnError) throw fnError;
+
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'O chat está temporariamente indisponível. Estamos a migrar para um novo sistema.',
+        content: data?.response || 'Não consegui processar a sua pergunta.',
       };
       setMessages(prev => [...prev, assistantMessage]);
+    } catch (err: any) {
+      console.error('Chat error:', err);
+      setError(err?.message || 'Erro ao comunicar com o assistente. Tente novamente.');
+      setLastFailedMessage(text);
+      setMessages(prev => prev.filter(m => m.id !== userMessage.id));
+    } finally {
       setIsLoading(false);
-    }, 500);
+    }
+  };
+
+  const handleRetry = () => {
+    if (lastFailedMessage) {
+      handleSubmit(lastFailedMessage);
+    }
   };
 
   const handleFormSubmit = (e: React.FormEvent) => {
@@ -111,7 +135,13 @@ export default function ChatPage() {
           {error && (
             <div className="mb-6 flex items-center gap-2 rounded-lg bg-destructive/10 p-4 text-destructive">
               <AlertCircle className="h-5 w-5 shrink-0" />
-              <span>{error}</span>
+              <span className="flex-1">{error}</span>
+              {lastFailedMessage && (
+                <Button variant="ghost" size="sm" onClick={handleRetry} className="shrink-0 text-destructive">
+                  <RotateCcw className="h-4 w-4 mr-1" />
+                  Tentar novamente
+                </Button>
+              )}
             </div>
           )}
 

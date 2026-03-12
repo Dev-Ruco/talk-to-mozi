@@ -9,6 +9,7 @@ import { VisualCarousel } from '@/components/news/VisualCarousel';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useArticle, useRelatedArticles } from '@/hooks/usePublishedArticles';
 import { getCategoryById, getCategoryColor } from '@/data/categories';
 import { useLikedArticles } from '@/hooks/useLikedArticles';
@@ -186,9 +187,11 @@ export default function ArticlePage() {
             </Button>
           </div>
 
-          {/* Chat */}
+        {/* Chat */}
           <div className="mt-8">
-            <ArticleChat article={article} />
+            <ErrorBoundary>
+              <ArticleChat article={article} />
+            </ErrorBoundary>
           </div>
         </motion.article>
 
@@ -369,7 +372,9 @@ export default function ArticlePage() {
 
         {/* 7. Chat with article */}
         <div className="mt-8">
-          <ArticleChat article={article} />
+          <ErrorBoundary>
+            <ArticleChat article={article} />
+          </ErrorBoundary>
         </div>
       </motion.article>
 

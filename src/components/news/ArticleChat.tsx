@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Send, Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
+import { Send, Sparkles, RefreshCw, AlertCircle, RotateCcw } from 'lucide-react';
 import { Article, ChatMessage } from '@/types/news';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { useLatestArticles } from '@/hooks/usePublishedArticles';
 import { InlineChatCarousel } from './InlineChatCarousel';
 import { sponsoredAds } from '@/data/ads';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ArticleChatProps {
   article: Article;
@@ -24,6 +25,7 @@ export function ArticleChat({ article }: ArticleChatProps) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -50,6 +52,7 @@ export function ArticleChat({ article }: ArticleChatProps) {
     if (!messageText.trim()) return;
 
     setError(null);
+    setLastFailedMessage(null);
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
@@ -61,17 +64,41 @@ export function ArticleChat({ article }: ArticleChatProps) {
     setInput('');
     setIsLoading(true);
 
-    // Chat functionality temporarily disabled — pending new backend
-    setTimeout(() => {
+    try {
+      const conversationHistory = messages.map(m => ({ role: m.role, content: m.content }));
+      
+      const { data, error: fnError } = await supabase.functions.invoke('chat', {
+        body: {
+          question: messageText,
+          article_id: article.id,
+          conversation_history: conversationHistory,
+        },
+      });
+
+      if (fnError) throw fnError;
+
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'O chat está temporariamente indisponível. Estamos a migrar para um novo sistema.',
+        content: data?.response || 'Não consegui processar a sua pergunta.',
         timestamp: new Date().toISOString(),
       };
       setMessages(prev => [...prev, assistantMessage]);
+    } catch (err: any) {
+      console.error('Chat error:', err);
+      setError(err?.message || 'Erro ao comunicar com o assistente. Tente novamente.');
+      setLastFailedMessage(messageText);
+      // Remove the user message that failed
+      setMessages(prev => prev.filter(m => m.id !== userMessage.id));
+    } finally {
       setIsLoading(false);
-    }, 500);
+    }
+  };
+
+  const handleRetry = () => {
+    if (lastFailedMessage) {
+      handleSend(lastFailedMessage);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -84,6 +111,7 @@ export function ArticleChat({ article }: ArticleChatProps) {
   const resetChat = () => {
     setMessages([]);
     setError(null);
+    setLastFailedMessage(null);
   };
 
   const shouldShowCarouselAfterIndex = (msgIndex: number): boolean => {
@@ -120,11 +148,17 @@ export function ArticleChat({ article }: ArticleChatProps) {
         {error && (
           <div className="mb-4 flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
             <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>{error}</span>
+            <span className="flex-1">{error}</span>
+            {lastFailedMessage && (
+              <Button variant="ghost" size="sm" onClick={handleRetry} className="shrink-0">
+                <RotateCcw className="h-3 w-3 mr-1" />
+                Tentar novamente
+              </Button>
+            )}
           </div>
         )}
         
-        {messages.length === 0 ? (
+        {messages.length === 0 && !error ? (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground text-center">Perguntas sugeridas:</p>
             <div className="flex flex-wrap justify-center gap-2">
