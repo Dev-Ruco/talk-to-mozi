@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Send } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -14,14 +14,12 @@ import Autoplay from 'embla-carousel-autoplay';
 import { getValidImageUrl } from '@/lib/imageUtils';
 import { cn } from '@/lib/utils';
 
-// Fallback topics if trending data is not available
 const fallbackTopics = ['inflação', 'combustível', 'chuvas', 'política', 'dólar', 'saúde', 'educação'];
 
 function getTimeAgo(dateString: string): string {
   const date = new Date(dateString);
   const now = new Date();
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-  
   if (diffInSeconds < 60) return `Há ${diffInSeconds}s`;
   if (diffInSeconds < 3600) return `Há ${Math.floor(diffInSeconds / 60)} min`;
   if (diffInSeconds < 86400) return `Há ${Math.floor(diffInSeconds / 3600)}h`;
@@ -31,11 +29,7 @@ function getTimeAgo(dateString: string): string {
 }
 
 function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString('pt-MZ', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
+  return new Date(dateString).toLocaleDateString('pt-MZ', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 export function HeroChat() {
@@ -43,17 +37,13 @@ export function HeroChat() {
   const [isSending, setIsSending] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const navigate = useNavigate();
-  
-  const { data: latestArticles = [], isLoading: isLoadingArticles } = useLatestArticles(4);
+
+  const { data: latestArticles = [], isLoading: isLoadingArticles } = useLatestArticles(6);
   const { data: trendingData, isLoading: isLoadingTrending } = useTrendingTopics();
 
   const [emblaRef, emblaApi] = useEmblaCarousel(
-    {
-      loop: true,
-      align: 'center',
-      containScroll: false,
-    },
-    [Autoplay({ delay: 5000, stopOnInteraction: true })]
+    { loop: true, align: 'center', containScroll: false },
+    [Autoplay({ delay: 5000, stopOnInteraction: false, stopOnMouseEnter: true })]
   );
 
   const onSelect = useCallback(() => {
@@ -68,17 +58,13 @@ export function HeroChat() {
     return () => { emblaApi.off('select', onSelect); };
   }, [emblaApi, onSelect]);
 
-  const quickTopics = trendingData?.topics?.length 
-    ? trendingData.topics.slice(0, 7)
-    : fallbackTopics;
+  const quickTopics = trendingData?.topics?.length ? trendingData.topics.slice(0, 7) : fallbackTopics;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
       setIsSending(true);
-      setTimeout(() => {
-        navigate(`/chat?q=${encodeURIComponent(query.trim())}`);
-      }, 200);
+      setTimeout(() => navigate(`/chat?q=${encodeURIComponent(query.trim())}`), 200);
     }
   };
 
@@ -97,15 +83,13 @@ export function HeroChat() {
     const isActive = index === selectedIndex;
     return cn(
       'transition-all duration-300 ease-out',
-      isActive
-        ? 'scale-105 z-10 opacity-100'
-        : 'scale-90 opacity-70 z-0'
+      isActive ? 'scale-105 z-10 opacity-100' : 'scale-90 opacity-70 z-0'
     );
   };
 
   return (
     <section className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-8 md:min-h-[60vh] md:py-12">
-      <motion.div 
+      <motion.div
         className="w-full max-w-5xl space-y-8 text-center"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -113,7 +97,7 @@ export function HeroChat() {
       >
         {/* Main title */}
         <div className="mx-auto max-w-2xl space-y-3">
-          <motion.h1 
+          <motion.h1
             className="font-display text-3xl font-bold leading-tight md:text-4xl lg:text-5xl"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -123,10 +107,10 @@ export function HeroChat() {
             <span className="text-primary">Moçambique</span>?
           </motion.h1>
         </div>
-        
+
         {/* Chat input */}
-        <motion.form 
-          onSubmit={handleSubmit} 
+        <motion.form
+          onSubmit={handleSubmit}
           className="mx-auto max-w-2xl space-y-4"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -139,31 +123,18 @@ export function HeroChat() {
               placeholder="Escreva qualquer tema: inflação, chuvas, política, dólar…"
               className="h-14 flex-1 text-base md:h-16 md:text-lg"
             />
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <Button
-                type="submit"
-                size="icon"
-                className="h-14 w-14 shrink-0 md:h-16 md:w-16"
-                disabled={isSending}
-              >
-                <motion.div
-                  animate={isSending ? { x: [0, 10], opacity: [1, 0] } : {}}
-                  transition={{ duration: 0.2 }}
-                >
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Button type="submit" size="icon" className="h-14 w-14 shrink-0 md:h-16 md:w-16" disabled={isSending}>
+                <motion.div animate={isSending ? { x: [0, 10], opacity: [1, 0] } : {}} transition={{ duration: 0.2 }}>
                   <Send className="h-5 w-5 md:h-6 md:w-6" />
                 </motion.div>
               </Button>
             </motion.div>
           </div>
-          
+
           {/* Quick topics */}
           <div className="space-y-2">
-            <p className="text-xs text-muted-foreground">
-              Exemplos do que pode perguntar:
-            </p>
+            <p className="text-xs text-muted-foreground font-normal">Exemplos do que pode perguntar:</p>
             <div className="flex flex-wrap justify-center gap-2">
               {isLoadingTrending ? (
                 <>
@@ -179,7 +150,7 @@ export function HeroChat() {
                     key={topic}
                     type="button"
                     onClick={() => navigate(`/chat?q=${encodeURIComponent(topic)}`)}
-                    className="rounded-full border bg-background px-3 py-1 text-xs transition-colors hover:border-primary hover:text-primary"
+                    className="rounded-full border bg-background px-3 py-1 text-xs font-normal transition-colors hover:border-primary hover:text-primary"
                     initial={{ opacity: 0, y: 5 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, delay: 0.3 + index * 0.05 }}
@@ -193,93 +164,88 @@ export function HeroChat() {
             </div>
           </div>
         </motion.form>
-        
-        {/* Carousel with scale effect */}
-        <motion.div 
-          className="pt-6"
+
+        {/* Branded carousel container */}
+        <motion.div
+          className="pt-4"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.5 }}
         >
-          {/* Section title */}
-          <h2 className="mb-4 font-display text-lg font-bold uppercase tracking-wide text-foreground">
-            Últimas notícias de hoje
-          </h2>
+          <div className="rounded-2xl bg-gradient-to-r from-primary/15 via-primary/10 to-primary/5 p-5 md:p-6">
+            <h2 className="mb-4 font-display text-lg font-bold uppercase tracking-wide text-foreground">
+              Últimas notícias de hoje
+            </h2>
 
-          {isLoadingArticles ? (
-            <div className="flex gap-4 overflow-hidden">
-              <Skeleton className="aspect-[16/10] w-full shrink-0 rounded-xl md:w-1/2 lg:w-1/3" />
-              <Skeleton className="hidden aspect-[16/10] w-1/2 shrink-0 rounded-xl md:block lg:w-1/3" />
-              <Skeleton className="hidden aspect-[16/10] w-1/3 shrink-0 rounded-xl lg:block" />
-            </div>
-          ) : carouselItems.length > 0 ? (
-            <>
-              <div className="overflow-hidden" ref={emblaRef}>
-                <div className="flex">
-                  {carouselItems.map((item, index) => (
-                    <div
-                      key={index}
-                      className="min-w-0 flex-[0_0_100%] px-2 md:flex-[0_0_50%] lg:flex-[0_0_33.333%]"
-                    >
-                      <div className={getSlideStyle(index)}>
-                        {item.type === 'article' ? (
-                          <button
-                            onClick={() => handleArticleChat(item.data.id)}
-                            className="group block w-full overflow-hidden rounded-xl border bg-card text-left"
-                          >
-                            <div className="overflow-hidden">
-                              <img
-                                src={getValidImageUrl(item.data.imageUrl)}
-                                alt={item.data.title}
-                                className="aspect-[16/10] w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                onError={(e) => {
-                                  e.currentTarget.src = '/placeholder.svg';
-                                }}
-                              />
+            {isLoadingArticles ? (
+              <div className="flex gap-4 overflow-hidden">
+                <Skeleton className="aspect-[16/10] w-full shrink-0 rounded-xl md:w-1/2 lg:w-1/3" />
+                <Skeleton className="hidden aspect-[16/10] w-1/2 shrink-0 rounded-xl md:block lg:w-1/3" />
+                <Skeleton className="hidden aspect-[16/10] w-1/3 shrink-0 rounded-xl lg:block" />
+              </div>
+            ) : carouselItems.length > 0 ? (
+              <>
+                <div className="overflow-hidden" ref={emblaRef}>
+                  <div className="flex">
+                    {carouselItems.map((item, index) => (
+                      <div
+                        key={index}
+                        className="min-w-0 flex-[0_0_100%] px-2 md:flex-[0_0_50%] lg:flex-[0_0_33.333%]"
+                      >
+                        <div className={getSlideStyle(index)}>
+                          {item.type === 'article' ? (
+                            <button
+                              onClick={() => handleArticleChat(item.data.id)}
+                              className="group block w-full overflow-hidden rounded-xl border bg-card text-left"
+                            >
+                              <div className="h-[140px] overflow-hidden">
+                                <img
+                                  src={getValidImageUrl(item.data.imageUrl)}
+                                  alt={item.data.title}
+                                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                  onError={(e) => { e.currentTarget.src = '/placeholder.svg'; }}
+                                />
+                              </div>
+                              <div className="p-3 space-y-1">
+                                <h3 className="font-display text-sm font-bold leading-tight line-clamp-2">
+                                  {item.data.title}
+                                </h3>
+                                <p className="text-xs text-muted-foreground font-normal">
+                                  {getTimeAgo(item.data.publishedAt)} · {formatDate(item.data.publishedAt)}
+                                </p>
+                              </div>
+                            </button>
+                          ) : (
+                            <div className="overflow-hidden rounded-xl border bg-card">
+                              <SponsoredCard ad={item.data} variant="carousel" />
                             </div>
-                            <div className="p-3 space-y-1">
-                              <h3 className="font-display text-sm font-semibold leading-tight line-clamp-2">
-                                {item.data.title}
-                              </h3>
-                              <p className="text-xs text-muted-foreground">
-                                {getTimeAgo(item.data.publishedAt)} · {formatDate(item.data.publishedAt)}
-                              </p>
-                            </div>
-                          </button>
-                        ) : (
-                          <div className="overflow-hidden rounded-xl border bg-card">
-                            <SponsoredCard ad={item.data} variant="carousel" />
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Dots */}
+                <div className="mt-4 flex justify-center gap-2">
+                  {carouselItems.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => emblaApi?.scrollTo(index)}
+                      className={cn(
+                        'h-2 rounded-full transition-all duration-300',
+                        index === selectedIndex ? 'w-6 bg-primary' : 'w-2 bg-primary/30'
+                      )}
+                    />
                   ))}
                 </div>
+              </>
+            ) : (
+              <div className="flex h-48 items-center justify-center rounded-xl border border-dashed border-muted-foreground/30">
+                <p className="text-sm text-muted-foreground">Ainda não há notícias publicadas.</p>
               </div>
-
-              {/* Active dots */}
-              <div className="mt-4 flex justify-center gap-2">
-                {carouselItems.map((_, index) => (
-                  <button
-                    key={index}
-                    onClick={() => emblaApi?.scrollTo(index)}
-                    className={cn(
-                      'h-2 rounded-full transition-all duration-300',
-                      index === selectedIndex
-                        ? 'w-6 bg-primary'
-                        : 'w-2 bg-primary/30'
-                    )}
-                  />
-                ))}
-              </div>
-            </>
-          ) : (
-            <div className="flex h-48 items-center justify-center rounded-xl border border-dashed border-muted-foreground/30">
-              <p className="text-sm text-muted-foreground">
-                Ainda não há notícias publicadas.
-              </p>
-            </div>
-          )}
+            )}
+          </div>
         </motion.div>
       </motion.div>
     </section>
