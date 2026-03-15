@@ -1,64 +1,83 @@
+# Diagnostico end-to-end da Edge Function rss-fetch
+
+## 1. Corrigir CORS na Edge Function
+
+O ficheiro `supabase/functions/rss-fetch/index.ts` tem CORS incompleto. O SDK do Supabase envia headers adicionais que nao estao na whitelist actual.
+
+**Actual (incompleto):**
+
+```
+"Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
+```
+
+**Correcto (com headers do SDK):**
+
+```
+"Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version"
+```
 
 
-# Auditoria Completa e Correcções do Sistema B NEWS
+| Ficheiro                                | Alteracao                                           |
+| --------------------------------------- | --------------------------------------------------- |
+| `supabase/functions/rss-fetch/index.ts` | Actualizar corsHeaders com headers completos do SDK |
 
-## Problemas Identificados
 
-### 1. Bug Crítico: `process-queue` Edge Function
-O ficheiro `supabase/functions/process-queue/index.ts` tem um bug de scope: a função `processArticle` recebe o parâmetro `LOVABLE_API_KEY` (linha 32), mas internamente usa a variável `OPENAI_API_KEY` (linha 84) que não existe nesse escopo. Isto causa falha silenciosa em todas as reformulações automáticas do pipeline.
+## 2. Adicionar botao de diagnostico em SourcesPage
 
-### 2. Pipeline Editorial — Fluxo Inbox → Pendentes
-O fluxo actual é: `rss-fetch` capta artigos como `captured` (Inbox) → `process-queue` ou `news-agent` reformula para `rewritten` (Pendentes) → Editor publica. O bug acima bloqueia a transição de Inbox para Pendentes via automação.
+Adicionar um botao temporario "Debug rss-fetch" no topo da pagina `/admin/sources` que executa duas chamadas em paralelo:
 
-### 3. Carrossel Hero — Card de Publicidade
-A `HeroChat.tsx` (linha 89-94) insere um `SponsoredCard` no carrossel de "Últimas Notícias de Hoje". Deve ser removido conforme pedido.
+- **Via SDK**: `supabase.functions.invoke("rss-fetch", { body: { dry_run: true } })`
+- **Via fetch directo**: `fetch("https://cmxhvptjfezxjjrrlwgx.supabase.co/functions/v1/rss-fetch", ...)`
 
-### 4. Secção "Últimas Notícias de Hoje" — Painel Visual
-O carrossel não tem um painel contentor com cor da marca (roxo B NEWS: `--primary: 271 81% 50%`). Deve ser envolvido num painel rectangular com fundo baseado nesta cor.
+O resultado aparece num modal com:
 
-### 5. IA do Chat — Funcional mas sem Markdown
-O chat funciona correctamente (usa `supabase.functions.invoke('chat')` → OpenAI API). As respostas são renderizadas com `whitespace-pre-line` mas sem suporte a Markdown, limitando a formatação das respostas da IA.
+- URL chamado
+- Status code (do fetch directo)
+- Resposta completa (JSON formatado)
+- Diagnostico automatico baseado no status:
+  - 404 = function nao deployada
+  - 401/403 = problema de autenticacao
+  - 400/415 = body ou headers errados
+  - 500 = erro interno na function
+  - 200 = tudo OK
 
----
 
-## Plano de Correcções
+| Ficheiro                          | Alteracao                                              |
+| --------------------------------- | ------------------------------------------------------ |
+| `src/admin/pages/SourcesPage.tsx` | Adicionar botao "Debug rss-fetch" + modal de resultado |
 
-### Tarefa 1: Corrigir bug no `process-queue/index.ts`
-- Renomear parâmetro `LOVABLE_API_KEY` para `OPENAI_API_KEY` na função `processArticle` (linha 32)
-- Remover comentário legacy "Call Lovable AI Gateway" (linha 80)
-- Re-deploy da function
 
-### Tarefa 2: Remover publicidade do carrossel Hero + adicionar painel
-**Ficheiro: `src/components/news/HeroChat.tsx`**
-- Remover a importação de `sponsoredAds` e `SponsoredCard`
-- Alterar `carouselItems` (linhas 89-94) para conter apenas artigos, sem o item `ad`
-- Envolver a secção do carrossel num painel com fundo `bg-primary/10` (roxo claro da marca), bordas arredondadas e padding
+## 3. O que NAO muda
 
-### Tarefa 3: Remover publicidade do feed (secção "Últimas Notícias de Hoje")
-**Ficheiro: `src/components/news/NewsFeed.tsx`**
-- Remover importação de `sponsoredAds` e `SponsoredCard`
-- Remover a lógica de inserção de `SponsoredCard` a cada 8 artigos (linhas 97-127)
-- Manter o feed limpo, apenas com cards de notícias
+- `client.ts` -- ja esta correcto, nao se toca
+- `.env` -- nao se usa para as chamadas (o client tem valores hardcoded)
+- Nenhum outro ficheiro e alterado
 
-### Tarefa 4: Adicionar renderização Markdown ao chat
-**Ficheiros: `src/components/news/ArticleChat.tsx` e `src/pages/ChatPage.tsx`**
-- Instalar `react-markdown` se não disponível
-- Substituir `<p className="whitespace-pre-line">` por `<ReactMarkdown>` nas respostas do assistente
-- Aplicar estilos `prose prose-sm` para formatação limpa
+## 4. Apos implementacao
 
-### Tarefa 5: Deploy e verificação
-- Deploy do `process-queue` corrigido
-- Verificar que o pipeline completo funciona: captar → reformular → publicar
+Depois de aprovado e implementado:
 
----
+1. Voce precisa de fazer deploy manual da function actualizada (com CORS corrigido) no projecto externo:
+  ```
+   supabase functions deploy rss-fetch --project-ref cmxhvptjfezxjjrrlwgx
+  ```
+2. Abrir `/admin/sources` e clicar "Debug rss-fetch"
+3. O modal mostrara exactamente o status, URL e resposta -- prova real da conectividade  
+  
+Confirmar no Supabase externo que a function aparece em “Edge Functions” e está activa.
+4. Se der **500**, ver os logs da function no projecto externo (não no Lovable Cloud).
 
-## Ficheiros Alterados
+## 5) Resultado esperado: quase certo, mas corrige esta frase
 
-| Ficheiro | Alteração |
-|---|---|
-| `supabase/functions/process-queue/index.ts` | Fix bug de scope da API key |
-| `src/components/news/HeroChat.tsx` | Remover ad do carrossel + painel roxo |
-| `src/components/news/NewsFeed.tsx` | Remover ads intercalados no feed |
-| `src/components/news/ArticleChat.tsx` | Markdown nas respostas IA |
-| `src/pages/ChatPage.tsx` | Markdown nas respostas IA |
+> “Se CORS bloqueia: o fetch directo falha mas o diagnostico indica a causa”
 
+## Resultado esperado
+
+- Se a function esta deployada em `cmxhv...`: modal mostra status 200 + dados JSON
+- Se nao esta deployada: modal mostra 404 com diagnostico claro
+- Se CORS bloqueia: o fetch directo falha mas o diagnostico indica a causa  
+Recomendações finais (curtas)
+  1. **CORS**: ou amplia a whitelist (como no plano) ou usa “echo” do `Access-Control-Request-Headers` no OPTIONS (mais robusto).
+  2. **Debug modal**: inclui caso “sem status” e mostra `error.message` → é aí que apanhas CORS.
+  3. **Deploy**: garante que estás a ver o projecto `cmxhv…` e não `kwwz…` quando checas logs.
+  Se quiseres, posso reescrever este plano numa versão “pronta para colar no Lovable” com as melhorias acima, mantendo a mesma estrutura.

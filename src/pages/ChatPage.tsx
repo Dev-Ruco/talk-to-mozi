@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Send, Sparkles, AlertCircle, RotateCcw } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { Layout } from '@/components/layout/Layout';
 import { NewsCard } from '@/components/news/NewsCard';
 import { Input } from '@/components/ui/input';
@@ -9,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useLatestArticles } from '@/hooks/usePublishedArticles';
 import { useTrendingSuggestions } from '@/hooks/useTrendingTopics';
 import { InlineChatCarousel } from '@/components/news/InlineChatCarousel';
-import { sponsoredAds } from '@/data/ads';
+
 import { supabase } from '@/integrations/supabase/client';
 
 interface ChatMessage {
@@ -32,10 +33,6 @@ export default function ChatPage() {
   const { data: latestArticles, isLoading: isLoadingLatest } = useLatestArticles(6);
   const { suggestions: trendingSuggestions, isLoading: isLoadingTrending } = useTrendingSuggestions();
 
-  const carouselAd = useMemo(() => 
-    sponsoredAds[Math.floor(Math.random() * sponsoredAds.length)],
-    []
-  );
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -215,7 +212,9 @@ export default function ChatPage() {
                             <Sparkles className="h-4 w-4 text-primary" />
                           </div>
                           <div className="flex-1 rounded-2xl rounded-tl-md bg-muted/50 px-4 py-3">
-                            <p className="text-sm leading-relaxed whitespace-pre-line">{message.content}</p>
+                            <div className="prose prose-sm dark:prose-invert max-w-none">
+                              <ReactMarkdown>{message.content}</ReactMarkdown>
+                            </div>
                           </div>
                         </div>
 
@@ -240,7 +239,7 @@ export default function ChatPage() {
                   </div>
 
                   {shouldShowCarouselAfterIndex(msgIndex) && latestArticles && latestArticles.length > 0 && (
-                    <InlineChatCarousel articles={latestArticles.slice(0, 2)} ads={[carouselAd]} className="ml-11" />
+                    <InlineChatCarousel articles={latestArticles.slice(0, 2)} ads={[]} className="ml-11" />
                   )}
                 </div>
               ))}

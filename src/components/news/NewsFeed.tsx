@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { usePublishedArticles, adaptArticle } from '@/hooks/usePublishedArticles';
-import { sponsoredAds } from '@/data/ads';
 import { NewsCard } from './NewsCard';
-import { SponsoredCard } from './SponsoredCard';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface NewsFeedProps {
@@ -94,12 +92,8 @@ export function NewsFeed({ categoryFilter, initialCount = 6 }: NewsFeedProps) {
     );
   }
 
-  // Insert sponsored cards every 8-10 items
-  const getAdIndex = (index: number) => Math.floor(index / 9) % sponsoredAds.length;
-
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      {/* Single column, vertical scroll feed */}
       <div className="flex flex-col gap-4">
         {displayedArticles.map((article, index) => (
           <motion.div 
@@ -109,21 +103,6 @@ export function NewsFeed({ categoryFilter, initialCount = 6 }: NewsFeedProps) {
             transition={{ duration: 0.3, delay: Math.min(index * 0.05, 0.2) }}
           >
             <NewsCard article={article} />
-            
-            {/* Insert sponsored card after every 8th item */}
-            {(index + 1) % 8 === 0 && index < displayedArticles.length - 1 && (
-              <motion.div 
-                className="mt-4"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <SponsoredCard 
-                  ad={sponsoredAds[getAdIndex(index)]} 
-                  variant="feed" 
-                />
-              </motion.div>
-            )}
           </motion.div>
         ))}
       </div>

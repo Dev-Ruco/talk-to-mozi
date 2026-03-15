@@ -7,8 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useLatestArticles } from '@/hooks/usePublishedArticles';
 import { useTrendingTopics } from '@/hooks/useTrendingTopics';
-import { sponsoredAds } from '@/data/ads';
-import { SponsoredCard } from './SponsoredCard';
 import useEmblaCarousel from 'embla-carousel-react';
 import Autoplay from 'embla-carousel-autoplay';
 import { getValidImageUrl } from '@/lib/imageUtils';
@@ -87,10 +85,7 @@ export function HeroChat() {
   };
 
   const carouselItems = latestArticles.length > 0
-    ? [
-        ...latestArticles.map(a => ({ type: 'article' as const, data: a })),
-        { type: 'ad' as const, data: sponsoredAds[0] }
-      ]
+    ? latestArticles.map(a => ({ type: 'article' as const, data: a }))
     : [];
 
   const getSlideStyle = (index: number) => {
@@ -201,6 +196,7 @@ export function HeroChat() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.5 }}
         >
+          <div className="rounded-2xl bg-primary/10 p-4 md:p-6">
           {/* Section title */}
           <h2 className="mb-4 font-display text-lg font-bold uppercase tracking-wide text-foreground">
             Últimas notícias de hoje
@@ -246,11 +242,7 @@ export function HeroChat() {
                               </p>
                             </div>
                           </button>
-                        ) : (
-                          <div className="overflow-hidden rounded-xl border bg-card">
-                            <SponsoredCard ad={item.data} variant="carousel" />
-                          </div>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                   ))}
@@ -280,6 +272,7 @@ export function HeroChat() {
               </p>
             </div>
           )}
+          </div>
         </motion.div>
       </motion.div>
     </section>
