@@ -29,7 +29,7 @@ FORMATO DE RESPOSTA (JSON):
   "quick_facts": ["Facto 1", "Facto 2", "Facto 3"]
 }`;
 
-async function processArticle(supabase: any, queueItem: any, LOVABLE_API_KEY: string) {
+async function processArticle(supabase: any, queueItem: any, OPENAI_API_KEY: string) {
   const { article_id, id: queue_id } = queueItem;
   
   console.log(`Processing article ${article_id} from queue ${queue_id}`);
