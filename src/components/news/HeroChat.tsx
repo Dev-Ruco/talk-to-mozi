@@ -7,8 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useLatestArticles } from '@/hooks/usePublishedArticles';
 import { useTrendingTopics } from '@/hooks/useTrendingTopics';
-import { sponsoredAds } from '@/data/ads';
-import { SponsoredCard } from './SponsoredCard';
 import useEmblaCarousel from 'embla-carousel-react';
 import Autoplay from 'embla-carousel-autoplay';
 import { getValidImageUrl } from '@/lib/imageUtils';
