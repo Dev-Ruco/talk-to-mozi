@@ -98,7 +98,7 @@ export function NewsFeed({ categoryFilter, initialCount = 6 }: NewsFeedProps) {
   const getAdIndex = (index: number) => Math.floor(index / 9) % sponsoredAds.length;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="mx-auto max-w-2xl space-y-4">
       {/* Single column, vertical scroll feed */}
       <div className="flex flex-col gap-4">
         {displayedArticles.map((article, index) => (

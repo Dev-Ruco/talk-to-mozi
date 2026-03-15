@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { HeroChat } from '@/components/news/HeroChat';
+import { FeaturedArticle } from '@/components/news/FeaturedArticle';
 import { CategoryChips } from '@/components/news/CategoryChips';
 import { NewsFeed } from '@/components/news/NewsFeed';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -15,6 +16,10 @@ const Index = () => {
           <HeroChat />
         </ErrorBoundary>
 
+        <ErrorBoundary>
+          <FeaturedArticle />
+        </ErrorBoundary>
+        
         <div className="border-t pt-6">
           <p className="mb-4 text-center text-sm font-medium text-muted-foreground">
             Últimas notícias de hoje
