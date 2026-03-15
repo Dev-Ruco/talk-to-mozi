@@ -33,10 +33,6 @@ export default function ChatPage() {
   const { data: latestArticles, isLoading: isLoadingLatest } = useLatestArticles(6);
   const { suggestions: trendingSuggestions, isLoading: isLoadingTrending } = useTrendingSuggestions();
 
-  const carouselAd = useMemo(() => 
-    sponsoredAds[Math.floor(Math.random() * sponsoredAds.length)],
-    []
-  );
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
