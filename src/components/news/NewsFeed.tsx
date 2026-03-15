@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { usePublishedArticles, adaptArticle } from '@/hooks/usePublishedArticles';
-import { sponsoredAds } from '@/data/ads';
 import { NewsCard } from './NewsCard';
-import { SponsoredCard } from './SponsoredCard';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface NewsFeedProps {
