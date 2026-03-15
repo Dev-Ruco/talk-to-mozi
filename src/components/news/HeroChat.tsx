@@ -242,11 +242,7 @@ export function HeroChat() {
                               </p>
                             </div>
                           </button>
-                        ) : (
-                          <div className="overflow-hidden rounded-xl border bg-card">
-                            <SponsoredCard ad={item.data} variant="carousel" />
-                          </div>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                   ))}
