@@ -186,7 +186,13 @@ export function ArticleChat({ article }: ArticleChatProps) {
                       ? 'bg-primary text-primary-foreground rounded-br-md'
                       : 'bg-background border rounded-bl-md'
                   )}>
-                    <p className="whitespace-pre-line">{message.content}</p>
+                    {message.role === 'assistant' ? (
+                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <ReactMarkdown>{message.content}</ReactMarkdown>
+                      </div>
+                    ) : (
+                      <p className="whitespace-pre-line">{message.content}</p>
+                    )}
                   </div>
                 </div>
                 {shouldShowCarouselAfterIndex(index) && carouselArticles.length > 0 && (

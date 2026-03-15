@@ -239,7 +239,7 @@ export default function ChatPage() {
                   </div>
 
                   {shouldShowCarouselAfterIndex(msgIndex) && latestArticles && latestArticles.length > 0 && (
-                    <InlineChatCarousel articles={latestArticles.slice(0, 2)} ads={[carouselAd]} className="ml-11" />
+                    <InlineChatCarousel articles={latestArticles.slice(0, 2)} ads={[]} className="ml-11" />
                   )}
                 </div>
               ))}

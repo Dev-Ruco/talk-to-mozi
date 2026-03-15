@@ -77,7 +77,7 @@ ${titleToRewrite}
 CONTEÚDO ORIGINAL:
 ${contentToRewrite}`;
 
-    // Call Lovable AI Gateway
+    // Call OpenAI API
     const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {

@@ -272,6 +272,7 @@ export function HeroChat() {
               </p>
             </div>
           )}
+          </div>
         </motion.div>
       </motion.div>
     </section>
