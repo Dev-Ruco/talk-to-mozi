@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Send, Sparkles, RefreshCw, AlertCircle, RotateCcw } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { Article, ChatMessage } from '@/types/news';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
