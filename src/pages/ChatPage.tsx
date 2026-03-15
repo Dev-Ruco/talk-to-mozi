@@ -212,7 +212,9 @@ export default function ChatPage() {
                             <Sparkles className="h-4 w-4 text-primary" />
                           </div>
                           <div className="flex-1 rounded-2xl rounded-tl-md bg-muted/50 px-4 py-3">
-                            <p className="text-sm leading-relaxed whitespace-pre-line">{message.content}</p>
+                            <div className="prose prose-sm dark:prose-invert max-w-none">
+                              <ReactMarkdown>{message.content}</ReactMarkdown>
+                            </div>
                           </div>
                         </div>
 
