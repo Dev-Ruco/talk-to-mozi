@@ -85,10 +85,7 @@ export function HeroChat() {
   };
 
   const carouselItems = latestArticles.length > 0
-    ? [
-        ...latestArticles.map(a => ({ type: 'article' as const, data: a })),
-        { type: 'ad' as const, data: sponsoredAds[0] }
-      ]
+    ? latestArticles.map(a => ({ type: 'article' as const, data: a }))
     : [];
 
   const getSlideStyle = (index: number) => {
