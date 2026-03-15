@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Send, Sparkles, AlertCircle, RotateCcw } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { Layout } from '@/components/layout/Layout';
 import { NewsCard } from '@/components/news/NewsCard';
 import { Input } from '@/components/ui/input';
