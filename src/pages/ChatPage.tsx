@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useLatestArticles } from '@/hooks/usePublishedArticles';
 import { useTrendingSuggestions } from '@/hooks/useTrendingTopics';
 import { InlineChatCarousel } from '@/components/news/InlineChatCarousel';
-import { sponsoredAds } from '@/data/ads';
+
 import { supabase } from '@/integrations/supabase/client';
 
 interface ChatMessage {
