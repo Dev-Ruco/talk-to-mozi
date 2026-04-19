@@ -1,9 +1,11 @@
+import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Clock } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import type { Article } from '@/types/news';
 import { categories } from '@/data/categories';
+import { useTrackEvent } from '@/hooks/useTrackEvent';
 
 interface FeedPostCardProps {
   article: Article;
@@ -11,6 +13,9 @@ interface FeedPostCardProps {
 
 export function FeedPostCard({ article }: FeedPostCardProps) {
   const category = categories.find((c) => c.id === article.category);
+  const { track } = useTrackEvent();
+  const ref = useRef<HTMLAnchorElement>(null);
+  const seenRef = useRef(false);
 
   let timeAgo = '';
   try {
@@ -22,10 +27,44 @@ export function FeedPostCard({ article }: FeedPostCardProps) {
     timeAgo = '';
   }
 
+  // Track impression when ≥50% of card enters viewport (once per mount)
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && !seenRef.current) {
+            seenRef.current = true;
+            track('impression', {
+              articleId: article.id,
+              category: article.category,
+              metadata: { source: 'feed' },
+            });
+            obs.disconnect();
+          }
+        });
+      },
+      { threshold: 0.5 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [article.id, article.category, track]);
+
+  const handleClick = () => {
+    track('view', {
+      articleId: article.id,
+      category: article.category,
+      metadata: { source: 'feed_click' },
+    });
+  };
+
   return (
     <Link
+      ref={ref}
       to={`/artigo/${article.id}`}
       state={{ fromFeed: true }}
+      onClick={handleClick}
       className="group block overflow-hidden rounded-2xl bg-card shadow-sm transition-all hover:shadow-md"
     >
       {article.imageUrl && (

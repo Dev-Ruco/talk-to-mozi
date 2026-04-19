@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router-dom';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Layout } from '@/components/layout/Layout';
@@ -12,21 +12,27 @@ import { BackToFeed } from '@/components/article/BackToFeed';
 import { ArticleHero } from '@/components/article/ArticleHero';
 import { ArticleActions } from '@/components/article/ArticleActions';
 import { ArticleBody } from '@/components/article/ArticleBody';
+import { ArticleAIActions } from '@/components/article/ArticleAIActions';
 import { InlineAIPrompt } from '@/components/article/InlineAIPrompt';
 import { ContinueReading } from '@/components/article/ContinueReading';
 import { NextArticlePreview } from '@/components/article/NextArticlePreview';
 import { useArticle, useRelatedArticles } from '@/hooks/usePublishedArticles';
 import { useLikedArticles } from '@/hooks/useLikedArticles';
+import { useTrackEvent } from '@/hooks/useTrackEvent';
 
 export default function ArticlePage() {
   const { id } = useParams<{ id: string }>();
   const { isLiked, toggleLike } = useLikedArticles();
   const [showBigHeart, setShowBigHeart] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
+  const { track } = useTrackEvent();
+  const readCompleteSentRef = useRef(false);
+  const viewSentRef = useRef<string | null>(null);
 
   // Scroll to top when page loads or article changes
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
+    readCompleteSentRef.current = false;
   }, [id]);
 
   const { data: article, isLoading, isError } = useArticle(id);
@@ -36,6 +42,40 @@ export default function ArticlePage() {
     if (!article?.content) return [];
     return article.content.split('\n\n').map((p) => p.trim()).filter(Boolean);
   }, [article?.content]);
+
+  // Track view once per article
+  useEffect(() => {
+    if (!article?.id) return;
+    if (viewSentRef.current === article.id) return;
+    viewSentRef.current = article.id;
+    track('view', {
+      articleId: article.id,
+      category: article.category,
+      metadata: { source: 'article_page' },
+    });
+  }, [article?.id, article?.category, track]);
+
+  // Track read_complete when scroll reaches 80%
+  useEffect(() => {
+    if (!article?.id) return;
+    const onScroll = () => {
+      if (readCompleteSentRef.current) return;
+      const scrollTop = window.scrollY;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      if (docHeight <= 0) return;
+      const pct = (scrollTop / docHeight) * 100;
+      if (pct >= 80) {
+        readCompleteSentRef.current = true;
+        track('read_complete', {
+          articleId: article.id,
+          category: article.category,
+          metadata: { source: 'article_page' },
+        });
+      }
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [article?.id, article?.category, track]);
 
   // Insert inline AI prompt after 2 paragraphs (short articles) or 3 (longer)
   const splitAt = paragraphs.length >= 5 ? 3 : 2;
@@ -83,6 +123,11 @@ export default function ArticlePage() {
     article.contentType === 'visual' && article.galleryUrls && article.galleryUrls.length > 0;
 
   const handleShare = async () => {
+    track('share', {
+      articleId: article.id,
+      category: article.category,
+      metadata: { source: 'article_actions' },
+    });
     if (navigator.share) {
       try {
         await navigator.share({
@@ -106,6 +151,11 @@ export default function ArticlePage() {
     if (!liked) {
       setShowBigHeart(true);
       setTimeout(() => setShowBigHeart(false), 600);
+      track('like', {
+        articleId: article.id,
+        category: article.category,
+        metadata: { source: 'article_actions' },
+      });
     }
     toggleLike(article.id);
   };
@@ -115,12 +165,26 @@ export default function ArticlePage() {
       toggleLike(article.id);
       setShowBigHeart(true);
       setTimeout(() => setShowBigHeart(false), 600);
+      track('like', {
+        articleId: article.id,
+        category: article.category,
+        metadata: { source: 'image_double_click' },
+      });
     }
   };
 
   const handleAskAI = (question: string) => {
     setPendingQuestion(question);
     scrollToChat();
+  };
+
+  const handleInlineAIAsk = (question: string) => {
+    track('ai_action', {
+      articleId: article.id,
+      category: article.category,
+      metadata: { ai_action_type: 'inline_prompt', source: 'article_inline' },
+    });
+    handleAskAI(question);
   };
 
   return (
@@ -179,10 +243,18 @@ export default function ArticlePage() {
           />
         </div>
 
+        <div className="mt-6">
+          <ArticleAIActions
+            articleId={article.id}
+            category={article.category}
+            onAsk={handleAskAI}
+          />
+        </div>
+
         {paragraphs.length > 0 && (
           <div className="mt-8 space-y-8">
             <ArticleBody paragraphs={paragraphs} from={0} to={splitAt} />
-            {paragraphs.length > splitAt && <InlineAIPrompt onAsk={handleAskAI} />}
+            {paragraphs.length > splitAt && <InlineAIPrompt onAsk={handleInlineAIAsk} />}
             <ArticleBody paragraphs={paragraphs} from={splitAt} />
           </div>
         )}
