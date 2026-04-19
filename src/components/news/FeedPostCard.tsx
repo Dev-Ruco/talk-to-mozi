@@ -25,6 +25,7 @@ export function FeedPostCard({ article }: FeedPostCardProps) {
   return (
     <Link
       to={`/artigo/${article.id}`}
+      state={{ fromFeed: true }}
       className="group block overflow-hidden rounded-2xl bg-card shadow-sm transition-all hover:shadow-md"
     >
       {article.imageUrl && (
