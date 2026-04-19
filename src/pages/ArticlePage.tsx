@@ -123,6 +123,11 @@ export default function ArticlePage() {
     article.contentType === 'visual' && article.galleryUrls && article.galleryUrls.length > 0;
 
   const handleShare = async () => {
+    track('share', {
+      articleId: article.id,
+      category: article.category,
+      metadata: { source: 'article_actions' },
+    });
     if (navigator.share) {
       try {
         await navigator.share({
@@ -146,6 +151,11 @@ export default function ArticlePage() {
     if (!liked) {
       setShowBigHeart(true);
       setTimeout(() => setShowBigHeart(false), 600);
+      track('like', {
+        articleId: article.id,
+        category: article.category,
+        metadata: { source: 'article_actions' },
+      });
     }
     toggleLike(article.id);
   };
@@ -155,12 +165,26 @@ export default function ArticlePage() {
       toggleLike(article.id);
       setShowBigHeart(true);
       setTimeout(() => setShowBigHeart(false), 600);
+      track('like', {
+        articleId: article.id,
+        category: article.category,
+        metadata: { source: 'image_double_click' },
+      });
     }
   };
 
   const handleAskAI = (question: string) => {
     setPendingQuestion(question);
     scrollToChat();
+  };
+
+  const handleInlineAIAsk = (question: string) => {
+    track('ai_action', {
+      articleId: article.id,
+      category: article.category,
+      metadata: { ai_action_type: 'inline_prompt', source: 'article_inline' },
+    });
+    handleAskAI(question);
   };
 
   return (
