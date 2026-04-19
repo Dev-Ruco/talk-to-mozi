@@ -25,10 +25,14 @@ export default function ArticlePage() {
   const { isLiked, toggleLike } = useLikedArticles();
   const [showBigHeart, setShowBigHeart] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
+  const { track } = useTrackEvent();
+  const readCompleteSentRef = useRef(false);
+  const viewSentRef = useRef<string | null>(null);
 
   // Scroll to top when page loads or article changes
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
+    readCompleteSentRef.current = false;
   }, [id]);
 
   const { data: article, isLoading, isError } = useArticle(id);
@@ -38,6 +42,40 @@ export default function ArticlePage() {
     if (!article?.content) return [];
     return article.content.split('\n\n').map((p) => p.trim()).filter(Boolean);
   }, [article?.content]);
+
+  // Track view once per article
+  useEffect(() => {
+    if (!article?.id) return;
+    if (viewSentRef.current === article.id) return;
+    viewSentRef.current = article.id;
+    track('view', {
+      articleId: article.id,
+      category: article.category,
+      metadata: { source: 'article_page' },
+    });
+  }, [article?.id, article?.category, track]);
+
+  // Track read_complete when scroll reaches 80%
+  useEffect(() => {
+    if (!article?.id) return;
+    const onScroll = () => {
+      if (readCompleteSentRef.current) return;
+      const scrollTop = window.scrollY;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      if (docHeight <= 0) return;
+      const pct = (scrollTop / docHeight) * 100;
+      if (pct >= 80) {
+        readCompleteSentRef.current = true;
+        track('read_complete', {
+          articleId: article.id,
+          category: article.category,
+          metadata: { source: 'article_page' },
+        });
+      }
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [article?.id, article?.category, track]);
 
   // Insert inline AI prompt after 2 paragraphs (short articles) or 3 (longer)
   const splitAt = paragraphs.length >= 5 ? 3 : 2;
