@@ -243,10 +243,18 @@ export default function ArticlePage() {
           />
         </div>
 
+        <div className="mt-6">
+          <ArticleAIActions
+            articleId={article.id}
+            category={article.category}
+            onAsk={handleAskAI}
+          />
+        </div>
+
         {paragraphs.length > 0 && (
           <div className="mt-8 space-y-8">
             <ArticleBody paragraphs={paragraphs} from={0} to={splitAt} />
-            {paragraphs.length > splitAt && <InlineAIPrompt onAsk={handleAskAI} />}
+            {paragraphs.length > splitAt && <InlineAIPrompt onAsk={handleInlineAIAsk} />}
             <ArticleBody paragraphs={paragraphs} from={splitAt} />
           </div>
         )}
