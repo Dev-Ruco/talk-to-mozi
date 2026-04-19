@@ -1,27 +1,46 @@
-# Problema: Quota OpenAI Esgotada
 
-## Diagnóstico
 
-Os logs da Edge Function `chat` mostram claramente o erro:
+## Plano: Componente BreakingNewsBanner
 
-```
-"You exceeded your current quota, please check your plan and billing details."
-```
+### Análise
+O schema da tabela `articles` já possui um campo `tags` (ARRAY) e `highlight_type` (text). Vou usar a tag `"ultima-hora"` no array `tags` como critério de detecção, combinado com `published_at` nas últimas 2 horas e `status = 'published'`.
 
-O `OPENAI_API_KEY` configurado não tem créditos disponíveis na conta OpenAI. Todas as funções que usam esta chave (chat, process-queue, rewrite-article, news-agent) estão bloqueadas.
+Não existe campo `breaking: true` na tabela — usar `tags @> ARRAY['ultima-hora']` é suficiente e flexível (editor adiciona a tag no editor de artigos via TagsInput existente).
 
-## Solução
+### Implementação
 
-Solicitar uma nova `OPENAI_API_KEY` com créditos activos. A chave pode ser obtida em:
+**1. Novo componente: `src/components/news/BreakingNewsBanner.tsx`**
+- Hook React Query que busca o artigo mais recente com:
+  - `status = 'published'`
+  - `tags` contém `'ultima-hora'`
+  - `published_at >= now() - 2 hours`
+  - Ordenado por `published_at DESC`, limit 1
+- Verifica `sessionStorage.getItem('dismissed-breaking-' + article.id)` — se existir, não renderiza
+- Estrutura visual:
+  - Container: `bg-[#DC2626] text-white w-full min-h-[44px] animate-slide-down`
+  - Esquerda: ponto branco `h-2 w-2 rounded-full bg-white animate-pulse`
+  - Texto: título do artigo (clicável → `navigate('/artigo/' + id)`)
+  - Direita: botão `✕` com handler que guarda ID no sessionStorage e força re-render via state local
+- Padding responsivo: `px-4 py-3 md:py-2`, texto `text-sm font-medium`, line-clamp-1 em mobile
 
-1. Aceder a [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys)
-2. Criar uma nova chave ou verificar os créditos da conta actual em [https://platform.openai.com/settings/organization/billing](https://platform.openai.com/settings/organization/billing)
-3. Fornecer a nova chave quando solicitado
+**2. Animação: adicionar a `tailwind.config.ts`**
+- Keyframe `slide-down`: `from { transform: translateY(-100%); opacity: 0 } to { transform: translateY(0); opacity: 1 }`
+- Animation: `slide-down: slide-down 0.3s ease-out`
 
-Nenhuma alteração de código é necessária -- apenas actualizar o valor do segredo `OPENAI_API_KEY` com uma chave válida.  
-  
-Actualiza a chave: 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
+**3. Integração no Layout: `src/components/layout/Layout.tsx`**
+- Renderizar `<BreakingNewsBanner />` logo após `<Header />` e antes do `<div className="container">`
+- Ocupa largura total do ecrã (fora do container)
 
-## Ficheiros alterados
+### Ficheiros alterados
 
-Nenhum. Apenas actualização do segredo existente.
+| Ficheiro | Alteração |
+|---|---|
+| `src/components/news/BreakingNewsBanner.tsx` | Criar componente novo |
+| `tailwind.config.ts` | Adicionar keyframe e animation `slide-down` |
+| `src/components/layout/Layout.tsx` | Renderizar banner abaixo do Header |
+
+### Notas
+- O banner é dispensável por sessão (sessionStorage), volta a aparecer numa nova sessão se ainda estiver dentro da janela de 2h
+- Editores marcam notícias de última hora simplesmente adicionando a tag `ultima-hora` no editor de artigos
+- Refetch a cada 60 segundos para detectar novas breaking news em tempo real
+
