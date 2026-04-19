@@ -48,6 +48,7 @@ export default function ArticlesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteIds, setDeleteIds] = useState<string[]>([]);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [ingestOpen, setIngestOpen] = useState(false);
 
   const debouncedSearch = useDebounce(search, 300);
 
