@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Layout } from '@/components/layout/Layout';
 import { ArticleChat } from '@/components/news/ArticleChat';
 import { VisualCarousel } from '@/components/news/VisualCarousel';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ReadingProgressBar } from '@/components/article/ReadingProgressBar';
@@ -18,7 +17,6 @@ import { ContinueReading } from '@/components/article/ContinueReading';
 import { NextArticlePreview } from '@/components/article/NextArticlePreview';
 import { useArticle, useRelatedArticles } from '@/hooks/usePublishedArticles';
 import { useLikedArticles } from '@/hooks/useLikedArticles';
-import { cn } from '@/lib/utils';
 
 export default function ArticlePage() {
   const { id } = useParams<{ id: string }>();
@@ -226,7 +224,3 @@ export default function ArticlePage() {
     </Layout>
   );
 }
-
-// Tailwind safelist hints (cn import kept for potential future use)
-void cn;
-void Button;
