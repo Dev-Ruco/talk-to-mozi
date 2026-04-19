@@ -305,13 +305,12 @@ Deno.serve(async (req) => {
 
     // Get request body for optional source filter
     let sourceId: string | null = null;
-    let autoRewrite = true; // Default: auto-rewrite enabled
+    // Auto-rewrite DESACTIVADO: a IA passou a depender de decisão editorial.
+    // O parâmetro `auto_rewrite` é ignorado mesmo se enviado.
+    const autoRewrite = false;
     try {
       const body = await req.json();
       sourceId = body?.source_id || null;
-      if (body?.auto_rewrite === false) {
-        autoRewrite = false;
-      }
     } catch {
       // No body or invalid JSON, process all sources
     }
@@ -516,36 +515,8 @@ Deno.serve(async (req) => {
               article_title: item.title.substring(0, 80),
             }, source.id, 1, 1);
 
-            // Auto-add to rewrite queue for background processing
-            if (insertedArticle?.id) {
-              try {
-                await supabase
-                  .from("rewrite_queue")
-                  .insert({
-                    article_id: insertedArticle.id,
-                    priority: 0, // Normal priority
-                    status: "queued",
-                  });
-                console.log(`Added article ${insertedArticle.id} to rewrite queue`);
-              } catch (queueError) {
-                console.warn(`Failed to add to rewrite queue:`, queueError);
-                // Don't block - article was saved successfully
-              }
-            }
-
-            // Also queue for immediate auto-rewrite if enabled (legacy behavior)
-            if (
-              autoRewrite &&
-              insertedArticle?.id &&
-              originalContent &&
-              articlesToRewrite.length < MAX_AUTO_REWRITES
-            ) {
-              articlesToRewrite.push({
-                id: insertedArticle.id,
-                title: item.title,
-                content: originalContent,
-              });
-            }
+            // NOTA: auto-fila e auto-rewrite removidos.
+            // Reescrita só ocorre por decisão editorial via UI → process-queue.
           }
         }
 

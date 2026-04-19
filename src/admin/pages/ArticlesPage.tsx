@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { AdminLayout } from '../components/layout/AdminLayout';
-import { FileText, Search, Trash2, Eye, Edit3, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { FileText, Search, Trash2, Eye, Edit3, Loader2, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { ManualIngestModal } from '../components/ingest/ManualIngestModal';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -47,6 +48,7 @@ export default function ArticlesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteIds, setDeleteIds] = useState<string[]>([]);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [ingestOpen, setIngestOpen] = useState(false);
 
   const debouncedSearch = useDebounce(search, 300);
 
@@ -136,14 +138,19 @@ export default function ArticlesPage() {
     <AdminLayout>
       <div className="space-y-4">
         {/* Header */}
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <FileText className="h-5 w-5 text-primary" />
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+              <FileText className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold">Artigos Publicados</h1>
+              <p className="text-sm text-muted-foreground">{total} artigos no total</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold">Artigos Publicados</h1>
-            <p className="text-sm text-muted-foreground">{total} artigos no total</p>
-          </div>
+          <Button onClick={() => setIngestOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" /> Adicionar notícia manual
+          </Button>
         </div>
 
         {/* Filters */}
@@ -310,6 +317,7 @@ export default function ArticlesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <ManualIngestModal open={ingestOpen} onOpenChange={setIngestOpen} />
     </AdminLayout>
   );
 }
