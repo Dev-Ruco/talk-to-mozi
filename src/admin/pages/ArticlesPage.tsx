@@ -317,6 +317,7 @@ export default function ArticlesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <ManualIngestModal open={ingestOpen} onOpenChange={setIngestOpen} />
     </AdminLayout>
   );
 }
