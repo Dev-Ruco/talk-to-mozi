@@ -8,7 +8,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 const Index = () => {
   return (
     <Layout>
-      <div className="space-y-10 md:space-y-14">
+      <div className="space-y-6 md:space-y-8">
         <ErrorBoundary>
           <HeroSearch />
         </ErrorBoundary>

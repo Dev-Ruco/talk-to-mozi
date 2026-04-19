@@ -64,9 +64,9 @@ export function HeroSearch() {
   const isDisabled = !query.trim();
 
   return (
-    <section className="px-4 py-12 md:py-20">
+    <section className="px-4 pt-8 pb-4 md:pt-10 md:pb-6">
       <motion.div
-        className="mx-auto max-w-4xl space-y-6 text-center"
+        className="mx-auto max-w-4xl space-y-4 text-center"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
@@ -86,7 +86,7 @@ export function HeroSearch() {
           organizadas por tema, sector ou acontecimento.
         </p>
 
-        <form onSubmit={handleSubmit} className="mx-auto max-w-2xl space-y-4 pt-2">
+        <form onSubmit={handleSubmit} className="mx-auto max-w-2xl space-y-3 pt-1">
           <div className="flex gap-2">
             <Input
               ref={inputRef}
@@ -115,7 +115,7 @@ export function HeroSearch() {
             Actualizado com notícias recentes e verificadas
           </p>
 
-          <div className="flex flex-wrap justify-center gap-2 pt-2">
+          <div className="flex flex-wrap justify-center gap-2 pt-1">
             {QUICK_CHIPS.map((chip, index) => (
               <motion.button
                 key={chip}
