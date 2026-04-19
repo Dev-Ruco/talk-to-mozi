@@ -94,6 +94,7 @@ export type Database = {
           content: string | null
           content_type: string
           created_at: string | null
+          curation_score: number | null
           duplicate_of: string | null
           editor_id: string | null
           gallery_urls: string[] | null
@@ -101,19 +102,24 @@ export type Database = {
           id: string
           image_caption: string | null
           image_url: string | null
+          ingestion_method: string | null
           is_duplicate: boolean | null
           lead: string | null
           location: string | null
+          normalized_title: string | null
           original_content: string | null
           original_title: string | null
           published_at: string | null
+          queued_by: string | null
           quick_facts: string[] | null
           reading_time: number | null
           scheduled_at: string | null
           seo_slug: string | null
           seo_title: string | null
+          similarity_hash: string | null
           source_id: string | null
           source_name: string | null
+          source_type: string | null
           source_url: string | null
           status: Database["public"]["Enums"]["article_status"] | null
           tags: string[] | null
@@ -129,6 +135,7 @@ export type Database = {
           content?: string | null
           content_type?: string
           created_at?: string | null
+          curation_score?: number | null
           duplicate_of?: string | null
           editor_id?: string | null
           gallery_urls?: string[] | null
@@ -136,19 +143,24 @@ export type Database = {
           id?: string
           image_caption?: string | null
           image_url?: string | null
+          ingestion_method?: string | null
           is_duplicate?: boolean | null
           lead?: string | null
           location?: string | null
+          normalized_title?: string | null
           original_content?: string | null
           original_title?: string | null
           published_at?: string | null
+          queued_by?: string | null
           quick_facts?: string[] | null
           reading_time?: number | null
           scheduled_at?: string | null
           seo_slug?: string | null
           seo_title?: string | null
+          similarity_hash?: string | null
           source_id?: string | null
           source_name?: string | null
+          source_type?: string | null
           source_url?: string | null
           status?: Database["public"]["Enums"]["article_status"] | null
           tags?: string[] | null
@@ -164,6 +176,7 @@ export type Database = {
           content?: string | null
           content_type?: string
           created_at?: string | null
+          curation_score?: number | null
           duplicate_of?: string | null
           editor_id?: string | null
           gallery_urls?: string[] | null
@@ -171,19 +184,24 @@ export type Database = {
           id?: string
           image_caption?: string | null
           image_url?: string | null
+          ingestion_method?: string | null
           is_duplicate?: boolean | null
           lead?: string | null
           location?: string | null
+          normalized_title?: string | null
           original_content?: string | null
           original_title?: string | null
           published_at?: string | null
+          queued_by?: string | null
           quick_facts?: string[] | null
           reading_time?: number | null
           scheduled_at?: string | null
           seo_slug?: string | null
           seo_title?: string | null
+          similarity_hash?: string | null
           source_id?: string | null
           source_name?: string | null
+          source_type?: string | null
           source_url?: string | null
           status?: Database["public"]["Enums"]["article_status"] | null
           tags?: string[] | null
@@ -207,6 +225,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      daily_capture_counter: {
+        Row: {
+          blocked_count: number
+          captured_count: number
+          day: string
+          updated_at: string
+        }
+        Insert: {
+          blocked_count?: number
+          captured_count?: number
+          day: string
+          updated_at?: string
+        }
+        Update: {
+          blocked_count?: number
+          captured_count?: number
+          day?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       media: {
         Row: {
@@ -313,34 +352,40 @@ export type Database = {
       rewrite_queue: {
         Row: {
           article_id: string
+          attempts: number | null
           completed_at: string | null
           created_at: string | null
           error_message: string | null
           id: string
           priority: number | null
           queued_at: string | null
+          queued_by: string | null
           started_at: string | null
           status: string | null
         }
         Insert: {
           article_id: string
+          attempts?: number | null
           completed_at?: string | null
           created_at?: string | null
           error_message?: string | null
           id?: string
           priority?: number | null
           queued_at?: string | null
+          queued_by?: string | null
           started_at?: string | null
           status?: string | null
         }
         Update: {
           article_id?: string
+          attempts?: number | null
           completed_at?: string | null
           created_at?: string | null
           error_message?: string | null
           id?: string
           priority?: number | null
           queued_at?: string | null
+          queued_by?: string | null
           started_at?: string | null
           status?: string | null
         }
@@ -356,7 +401,10 @@ export type Database = {
       }
       sources: {
         Row: {
+          allow_auto_capture: boolean | null
+          allow_manual: boolean | null
           articles_captured: number | null
+          blocked: boolean | null
           categories: string[] | null
           country: string | null
           created_at: string | null
@@ -370,13 +418,18 @@ export type Database = {
           is_active: boolean | null
           language: string | null
           last_fetch_at: string | null
+          max_items_per_run: number | null
           name: string
+          priority: number | null
           type: Database["public"]["Enums"]["source_type"] | null
           updated_at: string | null
           url: string
         }
         Insert: {
+          allow_auto_capture?: boolean | null
+          allow_manual?: boolean | null
           articles_captured?: number | null
+          blocked?: boolean | null
           categories?: string[] | null
           country?: string | null
           created_at?: string | null
@@ -390,13 +443,18 @@ export type Database = {
           is_active?: boolean | null
           language?: string | null
           last_fetch_at?: string | null
+          max_items_per_run?: number | null
           name: string
+          priority?: number | null
           type?: Database["public"]["Enums"]["source_type"] | null
           updated_at?: string | null
           url: string
         }
         Update: {
+          allow_auto_capture?: boolean | null
+          allow_manual?: boolean | null
           articles_captured?: number | null
+          blocked?: boolean | null
           categories?: string[] | null
           country?: string | null
           created_at?: string | null
@@ -410,7 +468,9 @@ export type Database = {
           is_active?: boolean | null
           language?: string | null
           last_fetch_at?: string | null
+          max_items_per_run?: number | null
           name?: string
+          priority?: number | null
           type?: Database["public"]["Enums"]["source_type"] | null
           updated_at?: string | null
           url?: string
@@ -574,6 +634,12 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_daily_capture: { Args: { _count: number }; Returns: number }
+      is_duplicate_article: {
+        Args: { _title: string; _url: string }
+        Returns: boolean
+      }
+      normalize_title: { Args: { _title: string }; Returns: string }
     }
     Enums: {
       app_role: "admin" | "editor_chefe" | "editor" | "revisor"
@@ -586,6 +652,10 @@ export type Database = {
         | "scheduled"
         | "published"
         | "rejected"
+        | "filtered"
+        | "reviewed"
+        | "queued"
+        | "discarded"
       credibility_level: "high" | "medium" | "low"
       event_type_enum:
         | "impression"
@@ -733,6 +803,10 @@ export const Constants = {
         "scheduled",
         "published",
         "rejected",
+        "filtered",
+        "reviewed",
+        "queued",
+        "discarded",
       ],
       credibility_level: ["high", "medium", "low"],
       event_type_enum: [
