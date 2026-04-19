@@ -12,6 +12,8 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface ArticleChatProps {
   article: Article;
+  initialQuestion?: string | null;
+  onInitialQuestionConsumed?: () => void;
 }
 
 const defaultSuggestions = [
@@ -21,7 +23,7 @@ const defaultSuggestions = [
   'Isto já aconteceu antes?',
 ];
 
-export function ArticleChat({ article }: ArticleChatProps) {
+export function ArticleChat({ article, initialQuestion, onInitialQuestionConsumed }: ArticleChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -29,6 +31,7 @@ export function ArticleChat({ article }: ArticleChatProps) {
   const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const { data: latestArticles = [] } = useLatestArticles(6);
   const carouselArticles = useMemo(() => 
@@ -47,6 +50,19 @@ export function ArticleChat({ article }: ArticleChatProps) {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Pre-fill input when an initial question is passed in (from inline AI prompt)
+  useEffect(() => {
+    if (initialQuestion) {
+      setInput(initialQuestion);
+      // Focus on next tick so the scroll has happened
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
+      onInitialQuestionConsumed?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialQuestion]);
 
   const handleSend = async (text?: string) => {
     const messageText = text || input;
@@ -133,7 +149,7 @@ export function ArticleChat({ article }: ArticleChatProps) {
           </div>
           <div>
             <h3 className="font-display font-semibold">Explore esta notícia</h3>
-            <p className="text-sm text-muted-foreground">Faça perguntas sobre o conteúdo</p>
+            <p className="text-sm text-muted-foreground">Faça perguntas e receba respostas imediatas</p>
           </div>
           {messages.length > 0 && (
             <Button variant="ghost" size="sm" onClick={resetChat} className="ml-auto">
@@ -220,6 +236,7 @@ export function ArticleChat({ article }: ArticleChatProps) {
       <div className="border-t bg-background p-4 flex-shrink-0">
         <div className="flex gap-2">
           <Input
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
