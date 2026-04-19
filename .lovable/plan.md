@@ -1,461 +1,307 @@
-O plano está **muito bem montado**. Tem lógica editorial, separa bem os blocos e já está suficientemente claro para implementação no Lovable. Ainda assim, eu refinaria alguns pontos para ficar **mais sólido, mais coerente e mais pronto para executar sem ambiguidades**.
+Perfeito. Aqui vai um **plano executivo**, mais directo, objectivo e orientado à implementação, para entregar ao programador ou colar no Lovable como guia de execução.
 
-## Versão refinada do plano
+# Plano executivo — Redesign da página de artigo do B NEWS
 
-# Plano final — Reestruturação da Homepage B NEWS
+## 1. Objectivo do projecto
 
-Vou reestruturar a homepage do **B NEWS** para lhe dar uma hierarquia mais editorial, melhorar a percepção da **Pesquisa IA** e tornar a secção de notícias mais forte visualmente, mais actual e mais útil para descoberta de conteúdo.
+Transformar a página de artigo do B NEWS numa experiência de leitura moderna, contínua e integrada com IA, deixando de parecer uma página noticiosa tradicional e passando a funcionar como extensão natural do feed principal.
 
-O redesenho vai manter a identidade visual existente da marca — **roxo principal, fundo cinza claro e cards brancos** — mas com melhor organização, mais densidade informativa e maior clareza de navegação.
+O foco é:
 
----
-
-## 1. Estrutura final da homepage
-
-```txt
-Header
-BreakingNewsBanner
-HeroSearch
-TrendingTopics
-FeaturedStory
-LatestNewsBlock
-MostReadList
-CategoryBlocks
-FinalCta
-Footer
-
-```
-
-### Ordem editorial pretendida
-
-- primeiro, o utilizador percebe imediatamente que pode **perguntar**
-- depois, vê os **temas do momento**
-- em seguida, encontra um **grande destaque editorial**
-- depois, consome as **últimas notícias**
-- a seguir, descobre o que está em evidência
-- por fim, explora por categorias e volta a ser convidado a usar a IA
+- melhorar a retenção de leitura;
+- reduzir fricção;
+- integrar IA no fluxo do artigo;
+- aumentar continuidade editorial;
+- preparar a base para futuras evoluções.
 
 ---
 
-## 2. Componentes a criar ou refactorizar
+## 2. Resultado esperado
 
-### 2.1 `HeroSearch.tsx`
+No fim desta implementação, a página de artigo deverá:
 
-Substitui a função actual do `HeroChat` como bloco principal da homepage.
-
-#### Objectivo
-
-Transformar a pesquisa IA no elemento mais forte da página, com aspecto de assistente noticioso e não apenas de campo de pesquisa.
-
-#### Conteúdo
-
-- título principal:  
-**Pergunte o que aconteceu hoje em Moçambique**
-- subtítulo:  
-**Receba respostas rápidas com base nas notícias mais recentes, organizadas por tema, sector ou acontecimento.**
-- linha de confiança:  
-**Actualizado com notícias recentes e verificadas**
-- input principal com botão de envio
-- placeholder dinâmico com rotação de exemplos
-- chips clicáveis que **preenchem o input**, sem disparar pesquisa automática
-
-#### Comportamento
-
-- o utilizador pode clicar num chip e depois editar antes de enviar
-- o botão envia para `/chat?q={query}`
-- se o input estiver vazio, o botão fica desactivado ou mostra estado neutro
-- placeholder muda a cada 4 segundos, sem ser intrusivo
-
-#### Estilo
-
-- bloco centralizado
-- `py-16 md:py-20`
-- largura confortável: `max-w-4xl` ou `max-w-5xl`
-- tipografia forte no título
-- botão de envio visualmente destacado
-
-#### Nota importante
-
-O carrossel actual deve sair deste bloco para evitar ruído visual. O hero deve ser limpo, directo e focado em conversão.
+- ter leitura mais confortável e visualmente mais premium;
+- manter o utilizador dentro do ecossistema do produto;
+- incentivar interacção com IA sem parecer um bloco solto;
+- ligar melhor o artigo ao feed;
+- apresentar continuidade de leitura com próximos conteúdos;
+- funcionar bem em desktop e mobile.
 
 ---
 
-### 2.2 `TrendingTopics.tsx`
+## 3. Escopo da fase actual
 
-Novo bloco para reforçar descoberta rápida.
+### Incluído nesta fase
 
-#### Objectivo
+- barra de progresso de leitura;
+- botão “Voltar ao feed” com lógica correcta;
+- hero do artigo redesenhado;
+- área de acções melhorada;
+- corpo do artigo com melhor tipografia e respiração;
+- bloco IA inserido no meio do artigo;
+- refactor do bloco de chat no fim;
+- secção “Continuar a ler” em coluna única;
+- preview do próximo artigo com prefetch;
+- ajustes de responsividade e micro-interacções.
 
-Dar ao utilizador pontos de entrada imediatos para temas quentes do dia.
+### Fora desta fase
 
-#### Conteúdo
-
-- título:  
-**🔥 Tópicos do momento**
-- lista horizontal com chips maiores
-- tópicos reais puxados de `useTrendingTopics`
-
-#### Comportamento
-
-- clique num tópico leva directamente para `/chat?q={topic}`
-- scroll horizontal suave em mobile
-- em desktop, mostrar o máximo possível antes de quebrar
-
-#### Sugestão
-
-Evitar tópicos demasiado genéricos. Priorizar expressões editoriais reais, por exemplo:
-
-- Crise de combustíveis
-- Chuvas intensas
-- Inflação
-- Investimento chinês
-- Energia
-- Educação
+- auto-load completo do próximo artigo;
+- `pushState` dinâmico da URL;
+- sistema avançado de likes;
+- double-click na imagem;
+- tracking avançado de leitura;
+- personalização por comportamento do utilizador.
 
 ---
 
-### 2.3 `FeaturedStory.tsx`
+## 4. Entregáveis
 
-Substitui o actual destaque por um bloco mais editorial.
+### Entregável 1 — Nova estrutura da página de artigo
 
-#### Objectivo
+A página passa a ter esta ordem:
 
-Criar um ponto focal forte logo após os tópicos do momento.
-
-#### Layout
-
-- grid de 2 colunas em `md+`
-- imagem grande à esquerda
-- conteúdo textual à direita
-- em mobile, empilhar imagem em cima e texto em baixo
-
-#### Conteúdo
-
-- categoria
-- título com maior peso visual
-- lead ou resumo com 2 a 3 linhas
-- metadata
-- botão “Ler notícia →”
-
-#### Fonte de dados
-
-- usar `useFeaturedArticle`
-
-#### Nota de qualidade
-
-Se não houver artigo destacado, fazer fallback automático para o artigo mais recente com imagem.
+1. ReadingProgressBar
+2. BackToFeed
+3. ArticleHero
+4. ArticleActions
+5. ArticleBody intro
+6. InlineAIPrompt
+7. ArticleBody resto
+8. QuickFacts opcional
+9. ArticleChat
+10. ContinueReading
+11. NextArticlePreview
 
 ---
 
-### 2.4 `LatestNewsBlock.tsx`
+### Entregável 2 — Nova experiência visual e funcional
 
-Novo bloco para substituir a actual secção de últimas notícias.
-
-#### Objectivo
-
-Dar mais ritmo, hierarquia e densidade informativa.
-
-#### Layout
-
-- à esquerda: card principal grande
-- à direita: lista lateral com 3 a 5 notícias compactas
-- em mobile: primeiro o card principal, depois a lista
-
-#### Estrutura
-
-**Card principal**
-
-- imagem 16:9
-- categoria
-- título
-- resumo curto
-- metadata
-
-**Lista lateral**
-
-- miniatura pequena
-- categoria
-- título
-- tempo ou data
-- sem resumo
-
-#### Regra editorial
-
-Se a secção se chama “Últimas notícias”, então os itens devem ser realmente recentes. Se o feed tiver conteúdo antigo, é melhor mudar o título para:
-
-- **Últimas actualizações**  
-ou
-- **Destaques recentes**
-
-Isto evita incoerência editorial.
+- layout centrado com largura controlada;
+- leitura mais respirada;
+- integração da IA no meio e no fim do artigo;
+- continuidade editorial com próximos artigos;
+- comportamento consistente com a homepage feed-first.
 
 ---
 
-### 2.5 `MostReadList.tsx`
+## 5. Componentes a criar
 
-Novo bloco para reforçar prova social e descoberta.
+### `ReadingProgressBar.tsx`
 
-#### Objectivo
+Responsável por mostrar progresso de leitura no topo da página.
 
-Mostrar o que está a captar mais atenção.
+### `BackToFeed.tsx`
 
-#### Estrutura
+Responsável por voltar ao feed correctamente:
 
-- header:  
-**Mais lidas**
-- lista numerada de 1 a 5
-- número grande à esquerda
-- título da notícia à direita
-- metadata opcional por baixo
+- `navigate(-1)` quando vier do feed;
+- `/` quando não houver origem conhecida.
 
-#### Situação actual
+### `ArticleHero.tsx`
 
-Como a base de dados não tem coluna de visualizações, o comportamento real de “mais lidas” ainda não existe.
+Responsável pelo topo editorial:
 
-#### Decisão de implementação
+- imagem;
+- categoria;
+- título;
+- lead;
+- metadata.
 
-Para já, implementar como solução transitória:
+### `ArticleActions.tsx`
 
-**Opção A**
+Responsável pelos botões:
 
-- usar artigos recentes
-- ordenar por `published_at DESC`
-- renomear para **Em destaque** se se quiser máxima correcção editorial
+- Conversar;
+- Curtir;
+- Partilhar.
 
-#### Recomendação
+### `ArticleBody.tsx`
 
-Se o nome **Mais lidas** for mantido já, convém assumir isso como aproximação temporária e não solução final.
+Responsável por renderizar o corpo do artigo com tipografia optimizada e divisão lógica antes e depois do bloco IA.
 
----
+### `InlineAIPrompt.tsx`
 
-### 2.6 `CategoryBlocks.tsx`
+Responsável por inserir um bloco curto no meio da leitura com perguntas sugeridas.
 
-Novo bloco de exploração por secção editorial.
+### `ContinueReading.tsx`
 
-#### Objectivo
+Responsável por mostrar 2 a 3 artigos em coluna única, com estilo alinhado ao feed.
 
-Permitir leitura mais estruturada por áreas temáticas.
+### `NextArticlePreview.tsx`
 
-#### Estrutura
-
-Criar 3 blocos iniciais:
-
-- Economia
-- Política
-- Sociedade
-
-Cada bloco deve ter:
-
-- cabeçalho com nome da categoria
-- link “Ver mais”
-- 3 cards horizontais ou mini-cards
-
-#### Sugestão
-
-Se a base permitir, puxar os artigos mais recentes por categoria.  
-Se não houver 3 artigos suficientes numa categoria, mostrar apenas os disponíveis sem quebrar o layout.
+Responsável por mostrar o próximo artigo no fim da leitura e fazer prefetch quando entrar em viewport.
 
 ---
 
-### 2.7 `FinalCta.tsx`
+## 6. Componentes a refactorizar
 
-Bloco final para voltar a empurrar o uso da IA.
+### `ArticleChat.tsx`
 
-#### Objectivo
+Deve ser simplificado visualmente e adaptado para:
 
-Fechar a homepage com acção clara.
+- aceitar `initialQuestion`;
+- preencher input automaticamente;
+- focar o campo;
+- não enviar automaticamente.
 
-#### Conteúdo
+### `ArticlePage.tsx`
 
-**Não encontrou o que procura?**  
-**Pergunte directamente à nossa Pesquisa IA e receba um resumo imediato das notícias.**
+Deve passar a ser o orquestrador da nova estrutura e deixar de concentrar demasiada lógica visual num único ficheiro.
 
-Botão:  
-**Fazer uma pergunta**
+### `FeedPostCard.tsx`
 
-#### Comportamento
-
-- botão aponta para `/chat`
-- bloco centralizado
-- fundo suave com `bg-primary/10`
+Deve passar `state: { fromFeed: true }` ao navegar para um artigo, para permitir retorno correcto ao feed.
 
 ---
 
-## 3. Alterações no `Index.tsx`
+## 7. Decisões funcionais
 
-### Nova ordem dos blocos
+### Navegação de retorno
 
-- Header
-- BreakingNewsBanner
-- HeroSearch
-- TrendingTopics
-- FeaturedStory
-- LatestNewsBlock
-- MostReadList
-- CategoryBlocks
-- FinalCta
-- Footer
+Só usar `navigate(-1)` quando o artigo for aberto a partir do feed. Caso contrário, voltar para a homepage.
 
-### Remoções da homepage
+### Inserção do bloco IA
 
-- remover `CategoryChips` da homepage
-- remover `NewsFeed` da homepage na forma actual
-- manter estes componentes disponíveis para outras páginas, se necessário
+O bloco IA deve aparecer:
 
-### Nota
+- após o 2.º parágrafo em artigos curtos;
+- após o 3.º parágrafo em artigos mais longos.
 
-`HeroChat.tsx` pode ser preservado no projecto temporariamente, mas já não deve ser usado na homepage.
+### Chat
+
+Quando o utilizador clicar num chip do bloco IA:
+
+- fazer scroll suave até ao chat;
+- preencher a pergunta;
+- focar o input;
+- aguardar submissão manual.
+
+### Próximo artigo
+
+Nesta fase, mostrar apenas um preview do próximo artigo, sem carregamento automático inline.
 
 ---
 
-## 4. Sistema visual a reforçar
+## 8. Requisitos visuais
 
-### Cards
+### Layout
 
-```txt
-rounded-2xl shadow-sm hover:shadow-md transition
+- container principal: `max-w-2xl mx-auto px-4`
+- leitura centrada;
+- muito espaço em branco;
+- evitar caixas pesadas.
 
-```
+### Tipografia
 
-### Imagens
+- título forte;
+- lead destacada;
+- corpo com `leading-8`;
+- espaçamento vertical entre parágrafos.
 
-```txt
-aspect-[16/9] object-cover
+### Cores
 
-```
-
-### Títulos
-
-```txt
-font-display font-bold
-
-```
+- fundo claro;
+- branco nos blocos;
+- roxo como cor primária;
+- cinzas suaves para metadata e suporte.
 
 ### Interacções
 
-- hover na imagem com leve zoom
-- hover no título com mudança subtil para a cor primária
-- skeleton loading para blocos com fetch
-- lazy loading de imagens
+- hover suave;
+- zoom leve nas imagens;
+- fade-in curto no carregamento;
+- skeleton ao abrir a página.
 
 ---
 
-## 5. Melhorias funcionais importantes
+## 9. Requisitos técnicos
 
-### 5.1 Hero mais inteligente
+### React / estrutura
 
-- placeholder rotativo
-- chips que preenchem o campo
-- botão apenas activo quando houver texto
+- separar claramente apresentação e lógica;
+- manter `ArticlePage.tsx` limpo;
+- reaproveitar componentes do feed quando fizer sentido.
 
-### 5.2 Consistência editorial
+### Scroll e viewport
 
-- evitar chamar “Últimas notícias de hoje” a conteúdos antigos
-- usar metadata clara:
-  - Hoje
-  - Há 1h
-  - Actualizado às 14h20
-  - ou data completa, quando necessário
+- usar `IntersectionObserver` para `NextArticlePreview`;
+- usar scroll suave para saltar para o chat.
 
-### 5.3 Responsividade
+### Performance
 
-- garantir boa leitura em mobile
-- evitar blocos com espaço vazio excessivo
-- listas laterais devem empilhar bem em ecrãs pequenos
+- lazy loading de imagens;
+- prefetch do próximo artigo;
+- skeleton de carregamento;
+- evitar lógica pesada na primeira renderização.
 
 ---
 
-## 6. Nota técnica — recomendação melhorada sobre “Mais lidas”
+## 10. Ordem de execução
 
-A observação técnica está correcta, mas eu escreveria assim para ficar mais executável:
+### Fase 1 — Base estrutural
 
-### Fase actual
+- criar `ReadingProgressBar`
+- criar `BackToFeed`
+- criar `ArticleHero`
+- criar `ArticleActions`
 
-Implementar o bloco com os artigos mais recentes e apresentar como:
+### Fase 2 — Leitura e IA
 
-- **Em destaque**, se quisermos rigor editorial imediato  
-ou
-- **Mais lidas**, apenas como solução provisória de interface
+- criar `ArticleBody`
+- inserir lógica de split
+- criar `InlineAIPrompt`
+- refactorizar `ArticleChat`
 
-### Melhoria futura recomendada
+### Fase 3 — Continuidade editorial
 
-Adicionar na tabela `articles`:
+- criar `ContinueReading`
+- criar `NextArticlePreview`
+- ligar prefetch
 
-```txt
-view_count INTEGER DEFAULT 0
+### Fase 4 — Polimento final
 
-```
-
-Depois:
-
-- incrementar contagem ao abrir `ArticlePage`
-- ordenar por `view_count DESC`
-- filtrar por janela temporal, por exemplo últimos 7 dias, para não cristalizar artigos antigos
-
-Isto tornará o bloco realmente útil.
-
----
-
-## 7. Lista final de ficheiros
-
-
-| Ficheiro                                  | Acção                                     |
-| ----------------------------------------- | ----------------------------------------- |
-| `src/components/news/HeroSearch.tsx`      | Novo                                      |
-| `src/components/news/TrendingTopics.tsx`  | Novo                                      |
-| `src/components/news/FeaturedStory.tsx`   | Novo                                      |
-| `src/components/news/LatestNewsBlock.tsx` | Novo                                      |
-| `src/components/news/MostReadList.tsx`    | Novo                                      |
-| `src/components/news/CategoryBlocks.tsx`  | Novo                                      |
-| `src/components/news/FinalCta.tsx`        | Novo                                      |
-| `src/pages/Index.tsx`                     | Reorganizar                               |
-| `src/components/news/HeroChat.tsx`        | Preservar, mas deixar sem uso na homepage |
-
+- hover
+- animações leves
+- skeletons
+- responsividade
+- consistência visual com homepage
 
 ---
 
-## 8. Ajustes finais que eu recomendo acrescentar ao plano
+## 11. Critérios de aceitação
 
-Estas três notas valem muito a pena incluir:
+O trabalho será considerado concluído quando:
 
-### A. Estados vazios
-
-Cada bloco deve ter fallback visual quando não houver dados suficientes.
-
-Exemplos:
-
-- sem notícia destacada
-- sem tópicos do momento
-- sem artigos em determinada categoria
-
-### B. Loading states
-
-Todos os blocos que dependem de fetch devem ter skeletons simples e consistentes.
-
-### C. Coerência de imagens
-
-Se uma notícia não tiver imagem:
-
-- usar placeholder editorial limpo
-- nunca deixar o card quebrado visualmente
+- a página de artigo estiver visualmente mais leve e mais moderna;
+- o utilizador conseguir voltar ao feed sem perder contexto;
+- a IA estiver integrada no meio e no fim do artigo;
+- a leitura estiver mais confortável;
+- a secção de continuidade estiver em coluna única;
+- o próximo artigo aparecer como preview no fim;
+- a experiência estiver estável em desktop e mobile.
 
 ---
 
-## 9. Veredicto sobre o plano
+## 12. Riscos a evitar
 
-O plano está **bom e executável**.  
-Com estes refinamentos, passa a estar **mais preciso, mais editorialmente correcto e mais robusto para implementação real**.
+- complicar demasiado a primeira versão;
+- introduzir auto-load total do próximo artigo demasiado cedo;
+- misturar demasiadas lógicas num único componente;
+- tornar a IA visualmente invasiva;
+- transformar a página de artigo numa salada de blocos.
 
-A única correcção que eu faria mesmo questão de deixar clara é esta:
+---
 
-### Em vez de:
+## 13. Recomendação estratégica
 
-> “Mais lidas” com `published_at DESC`
+A implementação deve priorizar **solidez, clareza e fluidez**.  
+A primeira versão deve resolver bem a experiência de leitura e a integração da IA. Funcionalidades mais ambiciosas, como scroll contínuo real entre artigos, devem entrar apenas numa segunda fase.
 
-### Melhor:
+---
 
-> implementar já como **Em destaque** e só mudar para **Mais lidas** quando existir `view_count`
+## 14. Resumo executivo final
 
-Isso evita prometer ao utilizador algo que o sistema ainda não mede.
+Esta intervenção tem como finalidade reposicionar a página de artigo do B NEWS como uma experiência de leitura contemporânea, integrada com IA e coerente com a lógica feed-first da plataforma. A prioridade é aumentar conforto, retenção e continuidade editorial, criando uma base sólida para futuras evoluções de personalização e consumo contínuo.
 
-Se quiser, no passo seguinte eu posso transformar isto num **prompt final, limpo e profissional para colar directamente no Lovable**, já em tom técnico de execução.
+Se quiser, eu posso agora transformar isto num **plano executivo ainda mais curto, em formato de pontos de aprovação para director/produto**.
