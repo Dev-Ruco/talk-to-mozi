@@ -1,307 +1,350 @@
-Perfeito. Aqui vai um **plano executivo**, mais directo, objectivo e orientado à implementação, para entregar ao programador ou colar no Lovable como guia de execução.
+# Plano técnico — Actualização do texto do `HeroSearch`
 
-# Plano executivo — Redesign da página de artigo do B NEWS
+## Objectivo
 
-## 1. Objectivo do projecto
+Actualizar o texto principal do componente `HeroSearch` para reflectir de forma clara que a pesquisa cobre **Moçambique e o mundo**, mantendo toda a estrutura visual, classes e comportamento actuais.
 
-Transformar a página de artigo do B NEWS numa experiência de leitura moderna, contínua e integrada com IA, deixando de parecer uma página noticiosa tradicional e passando a funcionar como extensão natural do feed principal.
-
-O foco é:
-
-- melhorar a retenção de leitura;
-- reduzir fricção;
-- integrar IA no fluxo do artigo;
-- aumentar continuidade editorial;
-- preparar a base para futuras evoluções.
+A alteração deve ser **cirúrgica**, limitada ao conteúdo textual do título e subtítulo, com um pequeno cuidado adicional para garantir boa quebra de linha no desktop e boa legibilidade no mobile.
 
 ---
 
-## 2. Resultado esperado
+## Escopo da alteração
 
-No fim desta implementação, a página de artigo deverá:
+### Incluído
 
-- ter leitura mais confortável e visualmente mais premium;
-- manter o utilizador dentro do ecossistema do produto;
-- incentivar interacção com IA sem parecer um bloco solto;
-- ligar melhor o artigo ao feed;
-- apresentar continuidade de leitura com próximos conteúdos;
-- funcionar bem em desktop e mobile.
+- substituição do texto do título;
+- substituição do texto do subtítulo;
+- preservação do destaque visual da palavra **Moçambique**;
+- controlo da quebra de linha do título no desktop, se necessário.
 
----
+### Não incluído
 
-## 3. Escopo da fase actual
-
-### Incluído nesta fase
-
-- barra de progresso de leitura;
-- botão “Voltar ao feed” com lógica correcta;
-- hero do artigo redesenhado;
-- área de acções melhorada;
-- corpo do artigo com melhor tipografia e respiração;
-- bloco IA inserido no meio do artigo;
-- refactor do bloco de chat no fim;
-- secção “Continuar a ler” em coluna única;
-- preview do próximo artigo com prefetch;
-- ajustes de responsividade e micro-interacções.
-
-### Fora desta fase
-
-- auto-load completo do próximo artigo;
-- `pushState` dinâmico da URL;
-- sistema avançado de likes;
-- double-click na imagem;
-- tracking avançado de leitura;
-- personalização por comportamento do utilizador.
+- alterações de layout;
+- alterações de classes Tailwind;
+- alterações de espaçamento;
+- alterações do input, botão, placeholder ou chips;
+- alterações de lógica ou comportamento do componente.
 
 ---
 
-## 4. Entregáveis
+## Componente afectado
 
-### Entregável 1 — Nova estrutura da página de artigo
 
-A página passa a ter esta ordem:
+| Ficheiro                             | Acção                                                  |
+| ------------------------------------ | ------------------------------------------------------ |
+| `src/components/news/HeroSearch.tsx` | Editar apenas o conteúdo textual do título e subtítulo |
 
-1. ReadingProgressBar
-2. BackToFeed
-3. ArticleHero
-4. ArticleActions
-5. ArticleBody intro
-6. InlineAIPrompt
-7. ArticleBody resto
-8. QuickFacts opcional
-9. ArticleChat
-10. ContinueReading
-11. NextArticlePreview
 
 ---
 
-### Entregável 2 — Nova experiência visual e funcional
+## Alterações a implementar
 
-- layout centrado com largura controlada;
-- leitura mais respirada;
-- integração da IA no meio e no fim do artigo;
-- continuidade editorial com próximos artigos;
-- comportamento consistente com a homepage feed-first.
+# 1. Título principal
 
----
+## Texto final pretendido
 
-## 5. Componentes a criar
+**O que aconteceu hoje em Moçambique e no mundo?**
 
-### `ReadingProgressBar.tsx`
+## Implementação recomendada
 
-Responsável por mostrar progresso de leitura no topo da página.
+Manter **Moçambique** dentro do `span` com destaque de cor primária e controlar melhor a quebra de linha para evitar um título demasiado comprido no desktop.
 
-### `BackToFeed.tsx`
+### Estrutura recomendada
 
-Responsável por voltar ao feed correctamente:
+```
+O que aconteceu hoje em{" "}
+<span className="text-primary">Moçambique</span>{" "}
+<br className="hidden md:block" />
+e no mundo?
+```
 
-- `navigate(-1)` quando vier do feed;
-- `/` quando não houver origem conhecida.
+## Razão técnica
 
-### `ArticleHero.tsx`
+Esta abordagem:
 
-Responsável pelo topo editorial:
+-   
+preserva o destaque visual de **Moçambique**;  
 
-- imagem;
-- categoria;
-- título;
-- lead;
-- metadata.
+-   
+melhora a leitura no desktop;  
 
-### `ArticleActions.tsx`
+-   
+evita uma quebra desajeitada em 3 linhas;  
 
-Responsável pelos botões:
+-   
+mantém boa adaptação ao mobile, porque o `<br>` só aparece em `md+`.  
 
-- Conversar;
-- Curtir;
-- Partilhar.
-
-### `ArticleBody.tsx`
-
-Responsável por renderizar o corpo do artigo com tipografia optimizada e divisão lógica antes e depois do bloco IA.
-
-### `InlineAIPrompt.tsx`
-
-Responsável por inserir um bloco curto no meio da leitura com perguntas sugeridas.
-
-### `ContinueReading.tsx`
-
-Responsável por mostrar 2 a 3 artigos em coluna única, com estilo alinhado ao feed.
-
-### `NextArticlePreview.tsx`
-
-Responsável por mostrar o próximo artigo no fim da leitura e fazer prefetch quando entrar em viewport.
 
 ---
 
-## 6. Componentes a refactorizar
+# 2. Subtítulo
 
-### `ArticleChat.tsx`
+## Texto final recomendado
 
-Deve ser simplificado visualmente e adaptado para:
+**Receba respostas rápidas com base nas notícias mais recentes, em Moçambique e no mundo.**
 
-- aceitar `initialQuestion`;
-- preencher input automaticamente;
-- focar o campo;
-- não enviar automaticamente.
+## Implementação
 
-### `ArticlePage.tsx`
+Substituir apenas o texto actual do `<p>` do subtítulo, sem mexer em classes.
 
-Deve passar a ser o orquestrador da nova estrutura e deixar de concentrar demasiada lógica visual num único ficheiro.
+## Razão
 
-### `FeedPostCard.tsx`
+Embora a formulação “a nível global” esteja correcta, “no mundo” é:
 
-Deve passar `state: { fromFeed: true }` ao navegar para um artigo, para permitir retorno correcto ao feed.
+-   
+mais natural;  
 
----
+-   
+mais directa;  
 
-## 7. Decisões funcionais
+-   
+mais coerente com o título;  
 
-### Navegação de retorno
+-   
+melhor para leitura rápida.  
 
-Só usar `navigate(-1)` quando o artigo for aberto a partir do feed. Caso contrário, voltar para a homepage.
-
-### Inserção do bloco IA
-
-O bloco IA deve aparecer:
-
-- após o 2.º parágrafo em artigos curtos;
-- após o 3.º parágrafo em artigos mais longos.
-
-### Chat
-
-Quando o utilizador clicar num chip do bloco IA:
-
-- fazer scroll suave até ao chat;
-- preencher a pergunta;
-- focar o input;
-- aguardar submissão manual.
-
-### Próximo artigo
-
-Nesta fase, mostrar apenas um preview do próximo artigo, sem carregamento automático inline.
 
 ---
 
-## 8. Requisitos visuais
+## O que deve ser preservado
 
-### Layout
+### No título
 
-- container principal: `max-w-2xl mx-auto px-4`
-- leitura centrada;
-- muito espaço em branco;
-- evitar caixas pesadas.
+-   
+classes existentes;  
 
-### Tipografia
+-   
+hierarquia tipográfica;  
 
-- título forte;
-- lead destacada;
-- corpo com `leading-8`;
-- espaçamento vertical entre parágrafos.
+-   
+alinhamento central;  
 
-### Cores
+-   
+largura máxima actual.  
 
-- fundo claro;
-- branco nos blocos;
-- roxo como cor primária;
-- cinzas suaves para metadata e suporte.
 
-### Interacções
+### No subtítulo
 
-- hover suave;
-- zoom leve nas imagens;
-- fade-in curto no carregamento;
-- skeleton ao abrir a página.
+-   
+classes existentes;  
 
----
+-   
+cor de apoio (`text-muted-foreground`);  
 
-## 9. Requisitos técnicos
+-   
+largura máxima;  
 
-### React / estrutura
+-   
+espaçamento actual.  
 
-- separar claramente apresentação e lógica;
-- manter `ArticlePage.tsx` limpo;
-- reaproveitar componentes do feed quando fizer sentido.
 
-### Scroll e viewport
+### No restante componente
 
-- usar `IntersectionObserver` para `NextArticlePreview`;
-- usar scroll suave para saltar para o chat.
+Não alterar:
 
-### Performance
+-   
+badge “Pesquisa IA”;  
 
-- lazy loading de imagens;
-- prefetch do próximo artigo;
-- skeleton de carregamento;
-- evitar lógica pesada na primeira renderização.
+-   
+input;  
 
----
+-   
+botão;  
 
-## 10. Ordem de execução
+-   
+chips;  
 
-### Fase 1 — Base estrutural
+-   
+placeholders;  
 
-- criar `ReadingProgressBar`
-- criar `BackToFeed`
-- criar `ArticleHero`
-- criar `ArticleActions`
+-   
+espaçamentos gerais;  
 
-### Fase 2 — Leitura e IA
+-   
+paddings da secção.  
 
-- criar `ArticleBody`
-- inserir lógica de split
-- criar `InlineAIPrompt`
-- refactorizar `ArticleChat`
-
-### Fase 3 — Continuidade editorial
-
-- criar `ContinueReading`
-- criar `NextArticlePreview`
-- ligar prefetch
-
-### Fase 4 — Polimento final
-
-- hover
-- animações leves
-- skeletons
-- responsividade
-- consistência visual com homepage
 
 ---
 
-## 11. Critérios de aceitação
+## Requisitos de implementação
 
-O trabalho será considerado concluído quando:
+### Título
 
-- a página de artigo estiver visualmente mais leve e mais moderna;
-- o utilizador conseguir voltar ao feed sem perder contexto;
-- a IA estiver integrada no meio e no fim do artigo;
-- a leitura estiver mais confortável;
-- a secção de continuidade estiver em coluna única;
-- o próximo artigo aparecer como preview no fim;
-- a experiência estiver estável em desktop e mobile.
+Manter as classes actuais do `<h1>`, por exemplo:
+
+- `font-display`  
+
+- `text-3xl`  
+
+- `font-bold`  
+
+- `leading-tight`  
+
+- `md:text-5xl`  
+
+
+### Subtítulo
+
+Manter as classes actuais do `<p>`, por exemplo:
+
+- `text-base`  
+
+- `text-muted-foreground`  
+
+- `md:text-lg`  
+
+- `max-w-*`  
+
+- `mx-auto`  
+
+
+### Destaque
+
+A palavra **Moçambique** deve continuar destacada com:
+
+```
+<span className="text-primary">Moçambique</span>
+```
 
 ---
 
-## 12. Riscos a evitar
+## Critérios de aceitação
 
-- complicar demasiado a primeira versão;
-- introduzir auto-load total do próximo artigo demasiado cedo;
-- misturar demasiadas lógicas num único componente;
-- tornar a IA visualmente invasiva;
-- transformar a página de artigo numa salada de blocos.
+A alteração será considerada correcta quando:
+
+-   
+o título passar a ser:  
+  
+**O que aconteceu hoje em Moçambique e no mundo?**  
+
+-   
+o subtítulo passar a ser:  
+  
+**Receba respostas rápidas com base nas notícias mais recentes, em Moçambique e no mundo.**  
+
+-   
+a palavra **Moçambique** continuar destacada a roxo;  
+
+-   
+o título mantiver boa leitura em desktop;  
+
+-   
+o título mantiver boa leitura em mobile;  
+
+-   
+não houver alterações visuais inesperadas no layout do hero;  
+
+-   
+nenhuma outra parte do componente for modificada.  
+
 
 ---
 
-## 13. Recomendação estratégica
+## Ordem de execução
 
-A implementação deve priorizar **solidez, clareza e fluidez**.  
-A primeira versão deve resolver bem a experiência de leitura e a integração da IA. Funcionalidades mais ambiciosas, como scroll contínuo real entre artigos, devem entrar apenas numa segunda fase.
+### Passo 1
+
+Abrir `src/components/news/HeroSearch.tsx`.
+
+### Passo 2
+
+Localizar o `<h1>` do hero e substituir o texto actual pela nova versão, mantendo o `span` de destaque.
+
+### Passo 3
+
+Adicionar quebra de linha condicional no desktop com:
+
+```
+<br className="hidden md:block" />
+```
+
+caso o título esteja demasiado extenso numa única linha ou parta mal.
+
+### Passo 4
+
+Localizar o `<p>` do subtítulo e substituir o texto actual.
+
+### Passo 5
+
+Validar visualmente:
+
+-   
+mobile;  
+
+-   
+tablet;  
+
+-   
+desktop.  
+
 
 ---
 
-## 14. Resumo executivo final
+## Validação visual recomendada
 
-Esta intervenção tem como finalidade reposicionar a página de artigo do B NEWS como uma experiência de leitura contemporânea, integrada com IA e coerente com a lógica feed-first da plataforma. A prioridade é aumentar conforto, retenção e continuidade editorial, criando uma base sólida para futuras evoluções de personalização e consumo contínuo.
+### Desktop
 
-Se quiser, eu posso agora transformar isto num **plano executivo ainda mais curto, em formato de pontos de aprovação para director/produto**.
+Confirmar que o título:
+
+-   
+fica equilibrado em 2 linhas;  
+
+-   
+não parece demasiado comprimido;  
+
+-   
+mantém bom impacto visual.  
+
+
+### Mobile
+
+Confirmar que:
+
+-   
+o título quebra naturalmente;  
+
+-   
+o subtítulo continua legível;  
+
+-   
+não há overflow nem desalinhamento.  
+
+
+---
+
+## Versão final resumida para execução
+
+```
+Actualizar apenas o texto do HeroSearch em src/components/news/HeroSearch.tsx.
+
+Título:
+O que aconteceu hoje em Moçambique e no mundo?
+
+Implementação recomendada:
+- manter “Moçambique” dentro de <span className="text-primary">
+- usar quebra de linha condicional em desktop com <br className="hidden md:block" />
+
+Subtítulo:
+Receba respostas rápidas com base nas notícias mais recentes, em Moçambique e no mundo.
+
+Não alterar classes, layout, espaçamentos, input, botão, chips ou qualquer outra parte do componente.
+```
+
+## Recomendação final
+
+Este é o plano que eu considero melhor porque:
+
+-   
+mantém a alteração simples;  
+
+-   
+evita regressões;  
+
+-   
+melhora a legibilidade do novo título;  
+
+-   
+preserva a identidade visual existente.  
+
+
+Se quiseres, a seguir posso também preparar um **plano técnico para actualizar o placeholder e os chips**, para ficarem alinhados com “Moçambique e no mundo”.
