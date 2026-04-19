@@ -500,6 +500,42 @@ export type Database = {
         }
         Relationships: []
       }
+      user_events: {
+        Row: {
+          anonymous_id: string
+          article_id: string | null
+          category: string | null
+          created_at: string
+          event_type: Database["public"]["Enums"]["event_type_enum"]
+          id: string
+          metadata: Json | null
+          session_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          anonymous_id: string
+          article_id?: string | null
+          category?: string | null
+          created_at?: string
+          event_type: Database["public"]["Enums"]["event_type_enum"]
+          id?: string
+          metadata?: Json | null
+          session_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          anonymous_id?: string
+          article_id?: string | null
+          category?: string | null
+          created_at?: string
+          event_type?: Database["public"]["Enums"]["event_type_enum"]
+          id?: string
+          metadata?: Json | null
+          session_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -523,6 +559,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_user_top_categories: {
+        Args: { _anonymous_id: string; _limit?: number }
+        Returns: {
+          category: string
+          score: number
+        }[]
+      }
       has_any_role: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
@@ -544,6 +587,14 @@ export type Database = {
         | "published"
         | "rejected"
       credibility_level: "high" | "medium" | "low"
+      event_type_enum:
+        | "impression"
+        | "view"
+        | "read_complete"
+        | "like"
+        | "save"
+        | "share"
+        | "ai_action"
       source_type: "rss" | "website" | "api"
     }
     CompositeTypes: {
@@ -684,6 +735,15 @@ export const Constants = {
         "rejected",
       ],
       credibility_level: ["high", "medium", "low"],
+      event_type_enum: [
+        "impression",
+        "view",
+        "read_complete",
+        "like",
+        "save",
+        "share",
+        "ai_action",
+      ],
       source_type: ["rss", "website", "api"],
     },
   },
