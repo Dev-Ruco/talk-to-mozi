@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { Fragment, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { usePublishedArticles } from '@/hooks/usePublishedArticles';
 import { FeedPostCard } from './FeedPostCard';
 import { FeedLoadingSkeleton } from './FeedLoadingSkeleton';
+import { ForYouFeed } from './ForYouFeed';
 import { Button } from '@/components/ui/button';
+
+const FOR_YOU_AFTER = 3;
 
 export function SocialNewsFeed() {
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -82,14 +85,16 @@ export function SocialNewsFeed() {
   return (
     <section className="mx-auto max-w-2xl space-y-6">
       {articles.map((article, index) => (
-        <motion.div
-          key={article.id}
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: Math.min(index * 0.04, 0.2) }}
-        >
-          <FeedPostCard article={article} />
-        </motion.div>
+        <Fragment key={article.id}>
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: Math.min(index * 0.04, 0.2) }}
+          >
+            <FeedPostCard article={article} />
+          </motion.div>
+          {index === FOR_YOU_AFTER - 1 && <ForYouFeed />}
+        </Fragment>
       ))}
 
       <div ref={sentinelRef} className="pt-2">
