@@ -77,13 +77,15 @@ export function HeroSearch() {
         </div>
 
         <h1 className="font-display text-3xl font-bold leading-tight md:text-5xl">
-          Pergunte o que aconteceu hoje em{' '}
-          <span className="text-primary">Moçambique</span>
+          O que aconteceu hoje em{' '}
+          <span className="text-primary">Moçambique</span>{' '}
+          <br className="hidden md:block" />
+          e no mundo?
         </h1>
 
         <p className="mx-auto max-w-2xl text-base text-muted-foreground md:text-lg">
-          Receba respostas rápidas com base nas notícias mais recentes,
-          organizadas por tema, sector ou acontecimento.
+          Receba respostas rápidas com base nas notícias mais recentes, em
+          Moçambique e no mundo.
         </p>
 
         <form onSubmit={handleSubmit} className="mx-auto max-w-2xl space-y-3 pt-1">
