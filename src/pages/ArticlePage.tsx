@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router-dom';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Layout } from '@/components/layout/Layout';
@@ -12,11 +12,13 @@ import { BackToFeed } from '@/components/article/BackToFeed';
 import { ArticleHero } from '@/components/article/ArticleHero';
 import { ArticleActions } from '@/components/article/ArticleActions';
 import { ArticleBody } from '@/components/article/ArticleBody';
+import { ArticleAIActions } from '@/components/article/ArticleAIActions';
 import { InlineAIPrompt } from '@/components/article/InlineAIPrompt';
 import { ContinueReading } from '@/components/article/ContinueReading';
 import { NextArticlePreview } from '@/components/article/NextArticlePreview';
 import { useArticle, useRelatedArticles } from '@/hooks/usePublishedArticles';
 import { useLikedArticles } from '@/hooks/useLikedArticles';
+import { useTrackEvent } from '@/hooks/useTrackEvent';
 
 export default function ArticlePage() {
   const { id } = useParams<{ id: string }>();
